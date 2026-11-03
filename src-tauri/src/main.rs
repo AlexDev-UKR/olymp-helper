@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod vault;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::{thread, time::Duration};
@@ -15,6 +16,7 @@ use tauri_plugin_updater::UpdaterExt;
 
 struct Game { exe: Mutex<String>, running: AtomicBool }
 struct Mode(Mutex<String>);
+struct VaultState(vault::Vault);
 struct TrayToggle(MenuItem<Wry>);
 
 fn show_main(app: &AppHandle) {
@@ -102,19 +104,48 @@ fn open_url(app: AppHandle, url: String) -> Result<(), String> {
     app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
 }
 
+fn updater(app: &AppHandle) -> Result<tauri_plugin_updater::Updater, String> {
+    app.updater_builder().timeout(Duration::from_secs(8)).build().map_err(|e| e.to_string())
+}
+
+fn vault(app: &AppHandle) -> Result<State<'_, VaultState>, String> {
+    app.try_state::<VaultState>().ok_or_else(|| "сховище ще не готове".to_string())
+}
+
+// Усі локальні дані (налаштування, кеш законів/довідника, нотатки) лежать у зашифрованих файлах в AppData.
+#[tauri::command]
+fn vault_dump(app: AppHandle) -> Result<serde_json::Value, String> {
+    let v = vault(&app)?;
+    Ok(serde_json::json!({ "data": v.0.dump(), "restored": v.0.restored }))
+}
+
+#[tauri::command]
+fn vault_set(app: AppHandle, key: String, value: String, src: String) -> Result<(), String> {
+    vault(&app)?.0.set(&key, value.clone()).map_err(|e| e.to_string())?;
+    let _ = app.emit("vault-changed", serde_json::json!({ "key": key, "value": value, "src": src }));
+    Ok(())
+}
+
+#[tauri::command]
+fn vault_del(app: AppHandle, key: String, src: String) -> Result<(), String> {
+    vault(&app)?.0.del(&key).map_err(|e| e.to_string())?;
+    let _ = app.emit("vault-changed", serde_json::json!({ "key": key, "value": serde_json::Value::Null, "src": src }));
+    Ok(())
+}
+
 #[tauri::command]
 fn app_version(app: AppHandle) -> String { app.package_info().version.to_string() }
 
 #[tauri::command]
 async fn check_update(app: AppHandle) -> Result<Option<serde_json::Value>, String> {
-    let u = app.updater().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())?;
+    let u = updater(&app)?.check().await.map_err(|e| e.to_string())?;
     Ok(u.map(|u| serde_json::json!({ "version": u.version, "notes": u.body })))
 }
 
 // Завантажує підписане оновлення, показує прогрес і перезапускає застосунок.
 #[tauri::command]
 async fn install_update(app: AppHandle) -> Result<(), String> {
-    let u = app.updater().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())?
+    let u = updater(&app)?.check().await.map_err(|e| e.to_string())?
         .ok_or_else(|| "Оновлень немає".to_string())?;
     let a = app.clone();
     let mut got: u64 = 0;
@@ -163,6 +194,12 @@ fn main() {
                 .build(),
         )
         .setup(|app| {
+            // --- зашифроване сховище (секрет задається під час збірки, ключ прив'язаний до ПК) ---
+            let dir = app.path().app_data_dir()?;
+            let machine = machine_uid::get().unwrap_or_else(|_| "unknown".into());
+            let secret = option_env!("OLYMP_STORE_SECRET").unwrap_or("olymp-dev-secret");
+            app.manage(VaultState(vault::Vault::open(dir, secret, &machine)));
+
             // --- системний трей ---
             let open = MenuItem::with_id(app, "open", "Відкрити Olymp Helper", true, None::<&str>)?;
             let tog = MenuItem::with_id(app, "toggle", "Показати/сховати оверлей (F5)", true, None::<&str>)?;
@@ -213,7 +250,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             toggle_overlay, show_overlay, set_overlay_mode, set_game_exe, game_status,
-            set_hotkey, set_autostart, pick_exe, open_url, app_version, check_update, install_update
+            set_hotkey, set_autostart, pick_exe, open_url, app_version, check_update, install_update, vault_dump, vault_set, vault_del
         ])
         .run(tauri::generate_context!())
         .expect("помилка запуску Olymp Helper");
