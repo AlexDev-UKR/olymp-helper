@@ -7,6 +7,7 @@
   "categories": [
     {
       "id": "kk",
+      "abbr": "КК",
       "title": "Кримінальний Кодекс (КК)",
       "color": "red",
       "articles": [
@@ -85,6 +86,7 @@
     },
     {
       "id": "adm",
+      "abbr": "АК",
       "title": "Адміністративний Кодекс (АК)",
       "color": "blue",
       "articles": [
@@ -136,6 +138,7 @@
     },
     {
       "id": "tk",
+      "abbr": "ТК",
       "title": "Транспортний Кодекс (ТК)",
       "color": "gold",
       "articles": [

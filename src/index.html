@@ -7,6 +7,8 @@
  <div class="menu">
   <button data-t="hub" class="on">Новини</button>
   <button data-t="laws">База законів</button>
+  <button data-t="faq">Довідник</button>
+  <button data-t="notes">Нотатки</button>
   <button data-t="set">Налаштування</button>
  </div>
  <button class="pri" id="runOv">Запустити оверлей</button>
@@ -18,7 +20,7 @@
  </div>
 </nav>
 <main>
- <div class="ovbar" data-tauri-drag-region><b>Olymp Оверлей</b><button id="ovClose">Сховати (<span id="hk1">F5</span>)</button></div>
+ <div class="ovbar" data-tauri-drag-region><b>Olymp Оверлей</b><div class="ovtabs"><button data-t="laws">Закони</button><button data-t="faq">Довідник</button><button data-t="notes">Нотатки</button></div><button id="ovClose">Сховати (<span id="hk1">F5</span>)</button></div>
 
  <div class="notice hide" id="updbar"><span id="updTxt"></span><progress id="prog" max="100" value="0" hidden></progress><button class="pri" id="updBtn">Оновити</button></div>
 
@@ -55,6 +57,21 @@
   </div>
  </section>
 
+ <section id="faq" class="tab hide">
+  <h1 class="only-launcher">Довідник</h1><p class="sub only-launcher">Відповіді на часті питання. Дані завантажуються з файлу faq.json.</p>
+  <div class="toolbar"><input type="search" id="fq" placeholder="Пошук у довіднику"></div>
+  <div class="chips" id="ftags"></div>
+  <div id="flist"></div>
+ </section>
+
+ <section id="notes" class="tab hide">
+  <h1 class="only-launcher">Нотатки</h1><p class="sub only-launcher">Зберігаються на вашому комп’ютері у зашифрованому вигляді й записуються автоматично.</p>
+  <div class="notes">
+   <div><button class="pri wide" id="nnew">+ Нова нотатка</button><div class="nlist" id="nlist"></div></div>
+   <div><textarea id="ntext" disabled></textarea><div class="row" style="margin-top:.6em"><button id="ncopy">Копіювати текст</button><button id="ndel">Видалити</button><span class="note" id="nstat"></span></div></div>
+  </div>
+ </section>
+
  <section id="set" class="tab hide only-launcher">
   <h1>Налаштування</h1><p class="sub">Гра, оверлей, вигляд і оновлення.</p>
   <div class="card group"><h2>Гра</h2>
@@ -68,6 +85,7 @@
    <div class="field"><label for="op">Прозорість: <span id="opv">90</span>%</label><div class="ctl"><input type="range" id="op" min="40" max="100" value="90"></div></div>
   </div>
   <div class="card group"><h2>Вигляд</h2>
+   <div class="field"><label>Акцентний колір</label><div class="ctl row"><span class="row" id="sw"></span><input type="color" id="acc" value="#c4a05a" aria-label="Власний колір"><button id="accReset">Скинути</button></div></div>
    <div class="field"><label for="fz">Розмір шрифту: <span id="fzv">100</span>%</label><div class="ctl"><input type="range" id="fz" min="80" max="150" value="100"></div></div>
   </div>
   <div class="card group"><h2>Оновлення</h2>
@@ -86,6 +104,7 @@
  <label class="chk"><input type="checkbox" id="rem"> Запам’ятати вибір (змінюється в налаштуваннях)</label>
  <div class="row" style="margin-top:.8em"><button id="mcancel">Скасувати</button></div>
 </div></div>
+<footer class="foot"><span>Olymp Helper | Author: <button class="lnk" data-tg data-u="">Sanchos</button></span><button class="bug" data-tg data-u="">Знайшли баг? / Підтримка</button></footer>
 <div class="toast" id="toast"></div>
 <script src="app.js" defer></script>
 </body></html>

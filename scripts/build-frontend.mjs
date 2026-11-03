@@ -6,7 +6,7 @@ fs.rmSync("dist", { recursive: true, force: true });
 fs.mkdirSync("dist", { recursive: true });
 const css = fs.readFileSync("src/style.css", "utf8");
 const html = fs.readFileSync("src/index.html", "utf8");
-const js = fs.readFileSync("src/app.js", "utf8");
+const js = fs.readFileSync("src/config.js", "utf8") + "\n" + fs.readFileSync("src/app.js", "utf8");
 const minCss = s => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\s+/g, " ").replace(/\s*([{};,])\s*/g, "$1");
 fs.writeFileSync("dist/style.css", dev ? css : minCss(css));
 fs.writeFileSync("dist/index.html", dev ? html : html.replace(/>\s+</g, "><"));

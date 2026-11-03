@@ -1,14 +1,20 @@
 {
-  "theme": { "accent": "#d4ab4a" },
+  "theme": {
+    "accent": "#d4ab4a"
+  },
   "miranda": "Ви маєте право зберігати мовчання. Усе, що ви скажете, може бути використано проти вас у суді.\nВи маєте право на адвоката. Якщо ви не можете його собі дозволити, його буде надано державою.\nЧи зрозумілі вам ваші права?",
   "min_launcher": "1.0.0",
-  "laws_url": "https://raw.githubusercontent.com/your-org/gov-laws/main/laws.json",
-  "news_url": "https://raw.githubusercontent.com/your-org/gov-laws/main/news.json",
+  "laws_url": "https://raw.githubusercontent.com/AlexDev-UKR/olymp-laws/refs/heads/main/laws.json",
+  "news_url": "https://raw.githubusercontent.com/AlexDev-UKR/olymp-laws/refs/heads/main/news.json",
   "links": {
-    "Discord": "https://discord.gg/your-invite",
-    "Форум": "https://forum.example.com",
-    "Сайт проєкту": "https://example.com",
-    "Таблиці фракції": "https://docs.google.com/spreadsheets/d/..."
+    "Telegram": "https://t.me/olymphelper_official",
+    "Форум": "https://sites.google.com/view/olymp-rp-rules/%D0%B3%D0%BE%D0%BB%D0%BE%D0%B2%D0%BD%D0%B0?authuser=0",
+    "Сайт проєкту": "https://olymp-rp.com/ua/",
+    "Таблиці фракції": "#"
   },
-  "banner": { "text": "Назва проєкту — приєднуйтесь до сервера", "url": "https://example.com" }
+  "banner": {
+    "text": "Olymp RP — приєднуйтесь до сервера",
+    "url": "https://olymp-rp.com/ua/"
+  },
+  "faq_url": "https://raw.githubusercontent.com/AlexDev-UKR/olymp-laws/refs/heads/main/faq.json"
 }
