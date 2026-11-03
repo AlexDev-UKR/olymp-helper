@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="uk"><head><meta charset="utf-8"><title>Olymp Helper</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="style.css"></head>
+<body>
+<div class="app">
+<nav>
+ <div class="brand"><span class="mark">O</span><div><b>Olymp Helper</b><small>База законів</small></div></div>
+ <div class="menu">
+  <button data-t="hub" class="on">Новини</button>
+  <button data-t="laws">База законів</button>
+  <button data-t="set">Налаштування</button>
+ </div>
+ <button class="pri" id="runOv">Запустити оверлей</button>
+ <div class="st">
+  <div><span class="dot" id="dot"></span><span id="net">Онлайн</span></div>
+  <div id="gs">Гру не запущено</div>
+  <div>База v<span id="ver">—</span> · <span id="upd">—</span></div>
+  <div>Застосунок <span id="appv">—</span></div>
+ </div>
+</nav>
+<main>
+ <div class="ovbar" data-tauri-drag-region><b>Olymp Оверлей</b><button id="ovClose">Сховати (<span id="hk1">F5</span>)</button></div>
+
+ <div class="notice hide" id="updbar"><span id="updTxt"></span><progress id="prog" max="100" value="0" hidden></progress><button class="pri" id="updBtn">Оновити</button></div>
+
+ <section id="hub" class="tab only-launcher">
+  <h1>Новини</h1><p class="sub">Оновлення законів, фракцій і сервера.</p>
+  <div id="news"><div class="empty">Новини ще не опубліковано. Адміністрація додає їх у news.json.</div></div>
+  <h2 class="gap">Ресурси</h2>
+  <div class="row" id="links"><button data-u="">Discord</button><button data-u="">Форум</button><button data-u="">Сайт проєкту</button><button data-u="">Таблиці фракції</button></div>
+  <div class="banner" id="banner" data-u="">Місце під банер або інформацію про RP-проєкт</div>
+  <div class="row gap"><button class="pri" id="goLaws">Відкрити базу законів</button><button id="goSet">Налаштування</button></div>
+ </section>
+
+ <section id="laws" class="tab hide">
+  <h1 class="only-launcher">База законів</h1>
+  <div class="toolbar">
+   <input type="search" id="q" placeholder="Пошук за номером, назвою, описом або тегом (Ctrl + K)">
+   <button id="sync">↻ Оновити базу</button>
+  </div>
+  <div class="split">
+   <div id="list"></div>
+   <aside class="card calc">
+    <h2>Калькулятор покарань</h2>
+    <div id="picked" class="note">Оберіть статті зі списку</div>
+    <div class="tot">
+     <div><span>Штраф</span><strong id="tf">$0</strong></div>
+     <div><span>КПЗ</span><strong id="tj">0 хв</strong></div>
+     <div><span>Розшук</span><strong id="tw">—</strong></div>
+     <div><span>Застава</span><strong id="tb">—</strong></div>
+    </div>
+    <div id="jnote" class="note warn"></div>
+    <div class="row" style="margin-top:.8em"><button id="clr">Скинути вибір</button><button id="mir">Правило Міранди</button></div>
+    <textarea id="mtext" readonly hidden></textarea><button id="mcopy" hidden class="wide">Копіювати текст</button>
+   </aside>
+  </div>
+ </section>
+
+ <section id="set" class="tab hide only-launcher">
+  <h1>Налаштування</h1><p class="sub">Гра, оверлей, вигляд і оновлення.</p>
+  <div class="card group"><h2>Гра</h2>
+   <div class="field"><label for="exe">Процес гри</label><div class="ctl row"><input type="text" id="exe" value="GTA5.exe"><button id="pick">Вибрати…</button></div>
+    <p class="hint">Назва .exe або повний шлях до нього. За цим полем визначається, чи запущена гра.</p></div>
+   <div class="field"><label for="auto">Автозапуск</label><div class="ctl"><label class="chk"><input type="checkbox" id="auto"> Запускати разом із Windows</label></div></div>
+  </div>
+  <div class="card group"><h2>Оверлей</h2>
+   <div class="field"><label>Гаряча клавіша</label><div class="ctl row"><span class="hk" id="hk2">F5</span><button id="bind">Змінити</button><span class="hint" id="bindHint"></span></div></div>
+   <div class="field"><label for="lm">Запуск оверлею</label><div class="ctl"><select id="lm"><option value="ask">Щоразу питати</option><option value="overlay">Завжди як оверлей</option><option value="window">Завжди як окремий застосунок</option></select></div></div>
+   <div class="field"><label for="op">Прозорість: <span id="opv">90</span>%</label><div class="ctl"><input type="range" id="op" min="40" max="100" value="90"></div></div>
+  </div>
+  <div class="card group"><h2>Вигляд</h2>
+   <div class="field"><label for="fz">Розмір шрифту: <span id="fzv">100</span>%</label><div class="ctl"><input type="range" id="fz" min="80" max="150" value="100"></div></div>
+  </div>
+  <div class="card group"><h2>Оновлення</h2>
+   <div class="field"><label>Поточна версія</label><div class="ctl row"><b id="setv">—</b><button id="chk">Перевірити оновлення</button><span class="hint" id="updMsg"></span></div></div>
+  </div>
+ </section>
+</main>
+</div>
+
+<div class="modal hide" id="modal" role="dialog" aria-modal="true" aria-labelledby="mt"><div class="card">
+ <h2 id="mt">Як запустити базу законів?</h2>
+ <div class="opts">
+  <button data-m="overlay"><b>Як оверлей</b><span>Прозоре вікно без рамки поверх гри. Працює з гарячою клавішею.</span></button>
+  <button data-m="window"><b>Як окремий застосунок</b><span>Звичайне вікно з рамкою, у панелі завдань. Його можна згортати й розтягувати.</span></button>
+ </div>
+ <label class="chk"><input type="checkbox" id="rem"> Запам’ятати вибір (змінюється в налаштуваннях)</label>
+ <div class="row" style="margin-top:.8em"><button id="mcancel">Скасувати</button></div>
+</div></div>
+<div class="toast" id="toast"></div>
+<script src="app.js" defer></script>
+</body></html>

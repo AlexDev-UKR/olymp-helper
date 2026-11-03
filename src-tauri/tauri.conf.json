@@ -1,0 +1,74 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Olymp Helper",
+  "version": "1.1.0",
+  "identifier": "ua.olymp.helper",
+  "build": {
+    "beforeBuildCommand": "node scripts/build-frontend.mjs",
+    "beforeDevCommand": "node scripts/build-frontend.mjs --dev",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost https://raw.githubusercontent.com"
+    },
+    "windows": [
+      {
+        "label": "main",
+        "title": "Olymp Helper — База законів і помічник фракцій",
+        "url": "index.html",
+        "width": 1180,
+        "height": 760,
+        "minWidth": 900,
+        "minHeight": 600,
+        "center": true
+      },
+      {
+        "label": "overlay",
+        "title": "Olymp Оверлей",
+        "url": "index.html?mode=overlay",
+        "width": 460,
+        "height": 720,
+        "x": 40,
+        "y": 40,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "resizable": true,
+        "shadow": false
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "languages": [
+          "Ukrainian"
+        ]
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENCOTgxMDgxMEE5Q0NGMjcKUldRbno1d0tnUkNZeTJ1czZBV05iTjNrN1lVSTlQYnJ1QUlzV0xyak54TVBaUlZVaTBaKy91Z2EK",
+      "endpoints": [
+        "https://github.com/AlexDev-UKR/olymp-helper/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "theme": { "accent": "#d4ab4a" },
+  "miranda": "Ви маєте право зберігати мовчання. Усе, що ви скажете, може бути використано проти вас у суді.\nВи маєте право на адвоката. Якщо ви не можете його собі дозволити, його буде надано державою.\nЧи зрозумілі вам ваші права?",
+  "min_launcher": "1.0.0",
+  "laws_url": "https://raw.githubusercontent.com/your-org/gov-laws/main/laws.json",
+  "news_url": "https://raw.githubusercontent.com/your-org/gov-laws/main/news.json",
+  "links": {
+    "Discord": "https://discord.gg/your-invite",
+    "Форум": "https://forum.example.com",
+    "Сайт проєкту": "https://example.com",
+    "Таблиці фракції": "https://docs.google.com/spreadsheets/d/..."
+  },
+  "banner": { "text": "Назва проєкту — приєднуйтесь до сервера", "url": "https://example.com" }
+}
