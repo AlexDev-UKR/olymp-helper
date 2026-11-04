@@ -1,100 +1,125 @@
 <!DOCTYPE html>
 <html lang="uk"><head><meta charset="utf-8"><title>Olymp Helper</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="style.css"></head>
-<body>
-<div class="boot" id="boot"><div class="boot-card"><span class="mark">O</span><h1>Olymp Helper</h1><p id="bootTxt">Запуск…</p><progress id="bootBar" max="100" value="0"></progress></div></div>
-<div class="app">
-<nav>
- <div class="brand"><span class="mark">O</span><div><b>Olymp Helper</b><small>База законів</small></div></div>
- <div class="menu">
-  <button data-t="hub" class="on">Новини</button>
-  <button data-t="laws">База законів</button>
-  <button data-t="faq">Довідник</button>
-  <button data-t="notes">Нотатки</button>
-  <button data-t="set">Налаштування</button>
+<body class="pre">
+<div class="win" id="win">
+ <div class="titlebar" id="titlebar" data-tauri-drag-region>
+  <div class="tt" data-tauri-drag-region><span class="mark sm">O</span><span>Olymp Helper</span></div>
+  <div class="wc"><button id="wMin" aria-label="Згорнути">&#8212;</button><button id="wMax" aria-label="Розгорнути">&#9633;</button><button id="wClose" class="x" aria-label="Закрити">&#10005;</button></div>
  </div>
- <button class="pri" id="runOv">Запустити оверлей</button>
- <div class="st">
-  <div><span class="dot" id="dot"></span><span id="net">Онлайн</span></div>
-  <div id="gs">Гру не запущено</div>
-  <div>База v<span id="ver">—</span> · <span id="upd">—</span></div>
-  <div>Застосунок <span id="appv">—</span></div>
- </div>
-</nav>
-<main>
- <div class="ovbar" data-tauri-drag-region><b>Olymp Оверлей</b><div class="ovtabs"><button data-t="laws">Закони</button><button data-t="faq">Довідник</button><button data-t="notes">Нотатки</button></div><button id="ovClose">Сховати (<span id="hk1">F5</span>)</button></div>
 
- <div class="notice hide" id="updbar"><span id="updTxt"></span><progress id="prog" max="100" value="0" hidden></progress><button class="pri" id="updBtn">Оновити</button></div>
+ <div class="app">
+  <nav>
+   <div class="brand"><span class="mark">O</span><div><b>Olymp Helper</b><small>База законів</small></div></div>
+   <div class="menu">
+    <button data-t="hub" class="on">Новини</button>
+    <button data-t="laws">База законів</button>
+    <button data-t="db">База даних</button>
+    <button data-t="faq">Довідник</button>
+    <button data-t="notes">Нотатки</button>
+    <button data-t="set">Налаштування</button>
+   </div>
+   <button class="pri" id="runOv">Запустити оверлей</button>
+   <div class="st">
+    <div><span class="dot" id="dot"></span><span id="net">Онлайн</span></div>
+    <div>База v<span id="ver">—</span> · <span id="upd">—</span></div>
+    <div>Застосунок <span id="appv">—</span></div>
+   </div>
+  </nav>
 
- <section id="hub" class="tab only-launcher">
-  <h1>Новини</h1><p class="sub">Оновлення законів, фракцій і сервера.</p>
-  <div id="news"><div class="empty">Новини ще не опубліковано. Адміністрація додає їх у news.json.</div></div>
-  <h2 class="gap">Ресурси</h2>
-  <div class="row" id="links"><button data-u="">Discord</button><button data-u="">Форум</button><button data-u="">Сайт проєкту</button><button data-u="">Таблиці фракції</button></div>
-  <div class="banner" id="banner" data-u="">Місце під банер або інформацію про RP-проєкт</div>
-  <div class="row gap"><button class="pri" id="goLaws">Відкрити базу законів</button><button id="goSet">Налаштування</button></div>
- </section>
+  <main>
+   <div class="ovbar" data-tauri-drag-region><b>Olymp Оверлей</b><div class="ovtabs"><button data-t="laws">Закони</button><button data-t="faq">Довідник</button><button data-t="notes">Нотатки</button></div><button id="ovClose">Сховати (<span id="hk1">F5</span>)</button></div>
 
- <section id="laws" class="tab hide">
-  <h1 class="only-launcher">База законів</h1>
-  <div class="toolbar">
-   <input type="search" id="q" placeholder="Пошук за номером, назвою, описом або тегом (Ctrl + K)">
-   <button id="sync">↻ Оновити базу</button>
-  </div>
-  <div class="split">
-   <div id="list"></div>
-   <aside class="card calc">
-    <h2>Калькулятор покарань</h2>
-    <div id="picked" class="note">Оберіть статті зі списку</div>
-    <div class="tot">
-     <div><span>Штраф</span><strong id="tf">$0</strong></div>
-     <div><span>КПЗ</span><strong id="tj">0 хв</strong></div>
-     <div><span>Розшук</span><strong id="tw">—</strong></div>
-     <div><span>Застава</span><strong id="tb">—</strong></div>
+   <div class="notice hide" id="updbar"><span id="updTxt"></span><progress id="prog" max="100" value="0" hidden></progress><button class="pri" id="updBtn">Оновити</button></div>
+
+   <section id="hub" class="tab only-launcher">
+    <h1>Новини</h1><p class="sub">Останні оновлення законів, фракцій і сервера.</p>
+    <div id="news"><div class="empty">Новини ще не опубліковано. Адміністрація додає їх у news.json.</div></div>
+    <div class="row gap0"><button id="newsMore" hidden>Старіші оновлення</button></div>
+    <h2 class="gap">Ресурси</h2>
+    <div class="row" id="links"><button data-u="">Discord</button><button data-u="">Форум</button><button data-u="">Сайт проєкту</button><button data-u="">Таблиці фракції</button></div>
+    <div class="banner" id="banner" data-u="">Місце під банер або інформацію про RP-проєкт</div>
+    <div class="row gap"><button class="pri" id="goLaws">Відкрити базу законів</button><button id="goSet">Налаштування</button></div>
+   </section>
+
+   <section id="laws" class="tab hide">
+    <h1 class="only-launcher">База законів</h1>
+    <div class="toolbar">
+     <input type="search" id="q" placeholder="Пошук за номером, назвою, описом або тегом (Ctrl + K)">
+     <button id="sync">↻ Оновити базу</button>
     </div>
-    <div id="jnote" class="note warn"></div>
-    <div class="row" style="margin-top:.8em"><button id="clr">Скинути вибір</button><button id="mir">Правило Міранди</button></div>
-    <textarea id="mtext" readonly hidden></textarea><button id="mcopy" hidden class="wide">Копіювати текст</button>
-   </aside>
-  </div>
- </section>
+    <div class="split">
+     <div id="list"></div>
+     <aside class="card calc">
+      <h2>Калькулятор покарань</h2>
+      <div id="picked" class="note">Оберіть статті зі списку</div>
+      <div class="tot">
+       <div><span>Штраф</span><strong id="tf">$0</strong></div>
+       <div><span>КПЗ</span><strong id="tj">0 хв</strong></div>
+       <div><span>Розшук</span><strong id="tw">—</strong></div>
+       <div><span>Застава</span><strong id="tb">—</strong></div>
+      </div>
+      <div id="jnote" class="note warn"></div>
+      <div class="row" style="margin-top:.8em"><button id="clr">Скинути вибір</button><button id="mir">Правило Міранди</button></div>
+      <textarea id="mtext" readonly hidden></textarea><button id="mcopy" hidden class="wide">Копіювати текст</button>
+     </aside>
+    </div>
+   </section>
 
- <section id="faq" class="tab hide">
-  <h1 class="only-launcher">Довідник</h1><p class="sub only-launcher">Відповіді на часті питання. Дані завантажуються з файлу faq.json.</p>
-  <div class="toolbar"><input type="search" id="fq" placeholder="Пошук у довіднику"></div>
-  <div class="chips" id="ftags"></div>
-  <div id="flist"></div>
- </section>
+   <section id="db" class="tab hide only-launcher">
+    <h1>Закони / База даних</h1><p class="sub">Повний текст кодексів для спокійного читання. Для швидкого пошуку під час гри користуйтеся оверлеєм.</p>
+    <div class="reader">
+     <div class="rlist" id="rlist"></div>
+     <div><input type="search" id="rq" placeholder="Пошук у цьому кодексі"><div id="rbody"></div></div>
+    </div>
+   </section>
 
- <section id="notes" class="tab hide">
-  <h1 class="only-launcher">Нотатки</h1><p class="sub only-launcher">Зберігаються на вашому комп’ютері у зашифрованому вигляді й записуються автоматично.</p>
-  <div class="notes">
-   <div><button class="pri wide" id="nnew">+ Нова нотатка</button><div class="nlist" id="nlist"></div></div>
-   <div><textarea id="ntext" disabled></textarea><div class="row" style="margin-top:.6em"><button id="ncopy">Копіювати текст</button><button id="ndel">Видалити</button><span class="note" id="nstat"></span></div></div>
-  </div>
- </section>
+   <section id="faq" class="tab hide">
+    <h1 class="only-launcher">Довідник</h1><p class="sub only-launcher">Відповіді на часті питання. Дані завантажуються з файлу faq.json.</p>
+    <div class="toolbar"><input type="search" id="fq" placeholder="Пошук у довіднику"></div>
+    <div class="chips" id="ftags"></div>
+    <div id="flist"></div>
+   </section>
 
- <section id="set" class="tab hide only-launcher">
-  <h1>Налаштування</h1><p class="sub">Гра, оверлей, вигляд і оновлення.</p>
-  <div class="card group"><h2>Гра</h2>
-   <div class="field"><label for="exe">Процес гри</label><div class="ctl row"><input type="text" id="exe" value="GTA5.exe"><button id="pick">Вибрати…</button></div>
-    <p class="hint">Назва .exe або повний шлях до нього. За цим полем визначається, чи запущена гра.</p></div>
-   <div class="field"><label for="auto">Автозапуск</label><div class="ctl"><label class="chk"><input type="checkbox" id="auto"> Запускати разом із Windows</label></div></div>
-  </div>
-  <div class="card group"><h2>Оверлей</h2>
-   <div class="field"><label>Гаряча клавіша</label><div class="ctl row"><span class="hk" id="hk2">F5</span><button id="bind">Змінити</button><span class="hint" id="bindHint"></span></div></div>
-   <div class="field"><label for="lm">Запуск оверлею</label><div class="ctl"><select id="lm"><option value="ask">Щоразу питати</option><option value="overlay">Завжди як оверлей</option><option value="window">Завжди як окремий застосунок</option></select></div></div>
-   <div class="field"><label for="op">Прозорість: <span id="opv">90</span>%</label><div class="ctl"><input type="range" id="op" min="40" max="100" value="90"></div></div>
-  </div>
-  <div class="card group"><h2>Вигляд</h2>
-   <div class="field"><label>Акцентний колір</label><div class="ctl row"><span class="row" id="sw"></span><input type="color" id="acc" value="#c4a05a" aria-label="Власний колір"><button id="accReset">Скинути</button></div></div>
-   <div class="field"><label for="fz">Розмір шрифту: <span id="fzv">100</span>%</label><div class="ctl"><input type="range" id="fz" min="80" max="150" value="100"></div></div>
-  </div>
-  <div class="card group"><h2>Оновлення</h2>
-   <div class="field"><label for="autoupd">Автооновлення</label><div class="ctl"><label class="chk"><input type="checkbox" id="autoupd"> Встановлювати оновлення автоматично під час запуску</label></div></div>
-   <div class="field"><label>Поточна версія</label><div class="ctl row"><b id="setv">—</b><button id="chk">Перевірити оновлення</button><span class="hint" id="updMsg"></span></div></div>
-  </div>
- </section>
-</main>
+   <section id="notes" class="tab hide">
+    <h1 class="only-launcher">Нотатки</h1><p class="sub only-launcher">Зберігаються на вашому комп’ютері у зашифрованому вигляді й записуються автоматично.</p>
+    <div class="notes">
+     <div><button class="pri wide" id="nnew">+ Нова нотатка</button><div class="nlist" id="nlist"></div></div>
+     <div><textarea id="ntext" disabled></textarea><div class="row" style="margin-top:.6em"><button id="ncopy">Копіювати текст</button><button id="ndel">Видалити</button><span class="note" id="nstat"></span></div></div>
+    </div>
+   </section>
+
+   <section id="set" class="tab hide only-launcher">
+    <h1>Налаштування</h1><p class="sub">Гра, вікно, вигляд і оновлення.</p>
+    <div class="card group"><h2>Оверлей і гра</h2>
+     <div class="field"><label for="autoov">Автозапуск оверлею</label><div class="ctl"><label class="chk"><input type="checkbox" id="autoov"> Автоматично запускати оверлей при запуску гри</label></div></div>
+     <div class="field"><label for="exe">Процес гри</label><div class="ctl row"><input type="text" id="exe" placeholder="GTA5.exe"><button id="pick">Вибрати…</button></div><p class="hint" id="exeHint"></p></div>
+     <div class="field"><label>Гаряча клавіша</label><div class="ctl row"><span class="hk" id="hk2">F5</span><button id="bind">Змінити</button><span class="hint" id="bindHint"></span></div></div>
+     <div class="field"><label for="lm">Запуск оверлею</label><div class="ctl"><select id="lm"><option value="ask">Щоразу питати</option><option value="overlay">Завжди як оверлей</option><option value="window">Завжди як окремий застосунок</option></select></div></div>
+     <div class="field"><label for="op">Прозорість: <span id="opv">90</span>%</label><div class="ctl"><input type="range" id="op" min="40" max="100" value="90"></div></div>
+    </div>
+    <div class="card group"><h2>Вікно</h2>
+     <div class="field"><label for="frame">Рамка вікна</label><div class="ctl"><select id="frame"><option value="custom">Кастомне вікно застосунку</option><option value="system">Використовувати рамку Windows</option></select></div></div>
+     <div class="field"><label for="closeb">Кнопка закриття [X]</label><div class="ctl"><select id="closeb"><option value="tray">Згортати в системний трей</option><option value="exit">Закривати застосунок повністю</option></select></div></div>
+     <div class="field"><label for="auto">Автозапуск</label><div class="ctl"><label class="chk"><input type="checkbox" id="auto"> Запускати разом із Windows</label></div></div>
+    </div>
+    <div class="card group"><h2>Вигляд</h2>
+     <div class="field"><label>Теми</label><div class="ctl"><div class="themes" id="themes"></div></div></div>
+     <div class="field"><label>Власні теми <span class="note" id="themeCnt"></span></label><div class="ctl row"><span class="themes" id="cthemes"></span><button id="newTheme">Створити тему</button></div></div>
+     <div class="field"><label for="fz">Розмір шрифту: <span id="fzv">100</span>%</label><div class="ctl"><input type="range" id="fz" min="80" max="150" value="100"></div></div>
+    </div>
+    <div class="card group"><h2>Оновлення</h2>
+     <div class="field"><label for="autoupd">Автооновлення</label><div class="ctl"><label class="chk"><input type="checkbox" id="autoupd"> Встановлювати оновлення автоматично під час запуску</label></div></div>
+     <div class="field"><label>Поточна версія</label><div class="ctl row"><b id="setv">—</b><button id="chk">Перевірити оновлення</button><span class="hint" id="updMsg"></span></div></div>
+    </div>
+   </section>
+  </main>
+ </div>
+
+ <footer class="foot">
+  <span class="gstat"><i class="gd" id="gdot" data-s="none"></i><span id="gs">Гра не вибрана</span></span>
+  <span class="auth">Olymp Helper | Author: <button class="lnk" data-tg data-u="">Sanchos</button></span>
+  <button class="bug" data-tg data-u="">Знайшли баг? / Підтримка</button>
+ </footer>
 </div>
 
 <div class="modal hide" id="modal" role="dialog" aria-modal="true" aria-labelledby="mt"><div class="card">
@@ -106,7 +131,22 @@
  <label class="chk"><input type="checkbox" id="rem"> Запам’ятати вибір (змінюється в налаштуваннях)</label>
  <div class="row" style="margin-top:.8em"><button id="mcancel">Скасувати</button></div>
 </div></div>
-<footer class="foot"><span>Olymp Helper | Author: <button class="lnk" data-tg data-u="">Sanchos</button></span><button class="bug" data-tg data-u="">Знайшли баг? / Підтримка</button></footer>
+
+<div class="modal hide" id="newsModal" role="dialog" aria-modal="true" aria-labelledby="nt"><div class="card big">
+ <div class="row between"><h2 id="nt">Архів новин</h2><button id="newsClose">Закрити</button></div>
+ <div class="scroll" id="newsAll"></div>
+</div></div>
+
+<div class="modal hide" id="themeModal" role="dialog" aria-modal="true" aria-labelledby="tt"><div class="card">
+ <h2 id="tt">Створити тему</h2>
+ <div class="field2"><label for="tn">Назва</label><input type="text" id="tn" maxlength="24" placeholder="Моя тема"></div>
+ <div class="field2"><label for="ta">Акцентний колір</label><input type="color" id="ta" value="#c4a05a"></div>
+ <div class="field2"><label for="tp">Фон карток і панелей</label><input type="color" id="tp" value="#151a21"></div>
+ <div class="field2"><label for="tr">Радіус закруглення: <span id="trv">10</span> px</label><input type="range" id="tr" min="0" max="20" value="10"></div>
+ <p class="note">Зміни видно одразу. «Скасувати» повертає попередню тему.</p>
+ <div class="row" style="margin-top:.8em"><button class="pri" id="tsave">Зберегти</button><button id="tcancel">Скасувати</button></div>
+</div></div>
+
 <div class="toast" id="toast"></div>
 <script src="app.js" defer></script>
 </body></html>

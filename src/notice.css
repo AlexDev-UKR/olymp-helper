@@ -1,0 +1,12 @@
+html,body{height:100%;margin:0;background:transparent;overflow:hidden}
+body{font:14px/1.5 "Segoe UI Variable","Segoe UI",system-ui,sans-serif;color:#e6e9ed;-webkit-user-select:none;user-select:none}
+.card{position:fixed;inset:6px;display:grid;place-content:center;justify-items:center;gap:.5em;text-align:center;padding:0 28px;border-radius:18px;border:1px solid rgba(255,255,255,.07);
+  background:radial-gradient(120% 90% at 50% 0%,#151a21 0%,#0d1015 62%);animation:in .25s ease both}
+.logo{width:44px;height:44px;margin-bottom:.2em}
+h1{font-size:16px;font-weight:600;margin:0}
+p{margin:0;color:#8a94a1;font-size:13px}
+button{margin-top:.8em;font:inherit;font-weight:600;color:#1a1409;background:#c4a05a;border:1px solid #c4a05a;border-radius:8px;padding:.5em 2.2em;cursor:pointer;transition:background-color .18s,transform .12s}
+button:hover{background:#d2b06c}button:active{transform:translateY(1px)}
+button:focus-visible{outline:2px solid #e6e9ed;outline-offset:2px}
+@keyframes in{from{opacity:0;transform:scale(.97)}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

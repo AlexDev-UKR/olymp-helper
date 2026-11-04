@@ -1,0 +1,15 @@
+html,body{height:100%;margin:0;background:transparent;overflow:hidden}
+body{font:14px/1.5 "Segoe UI Variable","Segoe UI",system-ui,sans-serif;color:#e6e9ed;-webkit-user-select:none;user-select:none}
+.card{position:fixed;inset:6px;display:grid;grid-template-rows:1fr auto;border-radius:18px;border:1px solid rgba(255,255,255,.06);
+  background:radial-gradient(120% 90% at 50% 0%,#151a21 0%,#0d1015 62%);animation:in .35s ease both;transition:opacity .4s ease,transform .4s ease}
+.center{display:grid;place-content:center;justify-items:center;gap:.35em}
+.logo{width:84px;height:84px;margin-bottom:.7em}
+.word{font-weight:600;font-size:15px;letter-spacing:.34em;padding-left:.34em}
+.sub{font-size:12px;color:#8a94a1;letter-spacing:.08em}
+.bottom{padding:0 30px 24px;display:grid;gap:10px}
+.st{text-align:center;font-size:12px;color:#8a94a1;min-height:1.5em}
+.track{height:2px;border-radius:2px;background:rgba(255,255,255,.07);overflow:hidden}
+.bar{height:100%;width:0;background:#c4a05a;border-radius:2px;transition:width .6s cubic-bezier(.2,.7,.2,1)}
+body.out .card{opacity:0;transform:scale(.97)}
+@keyframes in{from{opacity:0;transform:scale(.98)}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

@@ -41,6 +41,7 @@ function setNet(on){$("net").textContent=on?"Онлайн":"Офлайн реж�
 let MAN=null;
 const validLaws=d=>!!d&&Array.isArray(d.categories);
 const validFaq=d=>!!d&&Array.isArray(d.items);
+const validNews=validFaq;
 async function getManifest(){
   try{const r=await fetch(MANIFEST_URL,{cache:"no-store"});if(r.ok){const m=await r.json();if(m&&typeof m==="object"){store.set("manifest.cache",JSON.stringify(m));return m}}}catch(e){}
   return parse(store.get("manifest.cache"));
@@ -58,6 +59,7 @@ async function loadAll(manual,prog){
   if(manual)toast(L.src==="net"?"Базу оновлено до v"+DB.version:L.src==="cache"?"Немає зв’язку. Використано кеш":"Немає зв’язку. Завантажено вбудовану копію");
   p(80,"Завантаження довідника…");
   const F=await fetchCached((MAN&&MAN.faq_url)||DEFAULT_FAQ_URL,"faq.cache",validFaq);applyFaq(F.d);
+  if(MAN&&MAN.news_url){const N=await fetchCached(MAN.news_url,"news.cache",validNews);setNews(N.d?N.d.items:[])}else setNews([]);
   p(100,"Готово");
 }
 // Оверлей не робить власних запитів: дані надає головне вікно через спільне зашифроване сховище.
@@ -75,7 +77,7 @@ function applyDB(d){
   CATS=(d.categories||[]).map(c=>({id:c.id,title:c.title,color:c.color||"",abbr:c.abbr||abbrOf(c.title),
     groups:[...(c.articles&&c.articles.length?[{title:"",articles:c.articles}]:[]),...(c.sections||[]).map(s=>({title:s.title||"",articles:s.articles||[]}))]}));
   if(!inited&&CATS.length){opened.add(CATS[0].id);inited=true}
-  $("ver").textContent=d.version;$("upd").textContent=d.updated_at;render();
+  $("ver").textContent=d.version;$("upd").textContent=d.updated_at;render();renderReader();
 }
 const all=()=>CATS.flatMap(c=>c.groups.flatMap(g=>g.articles.map(a=>({...a,cat:c.title,code:c.abbr,sec:g.title}))));
 const picked=()=>all().filter(a=>sel.has(a.id));
@@ -194,7 +196,7 @@ $("ndel").onclick=()=>{
 addEventListener("focus",()=>{if(!dirty)loadNotes()});
 
 // ---- вкладки, режими, оверлей ----
-const TABS=["hub","laws","faq","notes","set"];
+const TABS=["hub","laws","db","faq","notes","set"];
 function tab(t){
   TABS.forEach(x=>$(x).classList.toggle("hide",x!==t));
   document.querySelectorAll("[data-t]").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
@@ -230,36 +232,141 @@ document.addEventListener("keydown",e=>{
   if(binding){e.preventDefault();if(["Control","Shift","Alt","Meta"].includes(e.key))return;setHK(combo(e));binding=false;$("bindHint").textContent="Збережено";return}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();tab("laws");$("q").focus();$("q").select();return}
   if(!TAURI&&combo(e)===hotkey){e.preventDefault();overlay(!document.body.classList.contains("ov"))}
-  if(e.key==="Escape"){if(!modal.classList.contains("hide"))closeModal();else if(document.body.classList.contains("ov"))overlay(false)}
+  if(e.key==="Escape"){
+    const m=document.querySelector(".modal:not(.hide)");
+    if(m){m.classList.add("hide");if(m.id==="themeModal")pickTheme();return}
+    if(document.body.classList.contains("ov"))overlay(false);
+  }
 });
 $("op").oninput=e=>{$("opv").textContent=e.target.value;document.documentElement.style.setProperty("--ov",e.target.value/100);store.set("gov.op",e.target.value)};
 $("fz").oninput=e=>{$("fzv").textContent=e.target.value;document.documentElement.style.setProperty("--fs",(15*e.target.value/100)+"px");store.set("gov.fz",e.target.value)};
-$("pick").onclick=async()=>{if(!TAURI){toast("Вибір файлу доступний у застосунку");return}const p=await invoke("pick_exe");if(p){$("exe").value=p;$("exe").onchange()}};
-$("exe").onchange=()=>{const n=$("exe").value.trim();store.set("gov.exe",n);if(TAURI)invoke("set_game_exe",{name:n})};
 $("auto").onchange=e=>{store.set("gov.auto",e.target.checked?"1":"0");if(TAURI)invoke("set_autostart",{enabled:e.target.checked}).catch(()=>toast("Не вдалося змінити автозапуск"))};
-// акцентний колір: вибір гравця має пріоритет над кольором із manifest.json
-const SW=["#c4a05a","#6a8fb8","#6aa083","#b9544e","#9a86b8"];
-const setAcc=c=>document.documentElement.style.setProperty("--ac",c);
-function markSw(c){document.querySelectorAll("#sw .sw").forEach(b=>b.classList.toggle("on",b.dataset.c===c))}
-$("sw").innerHTML=SW.map(c=>`<button class="sw" data-c="${c}" style="--c:${c}" aria-label="Колір ${c}"></button>`).join("");
-$("sw").addEventListener("click",e=>{const b=e.target.closest(".sw");if(!b)return;setAcc(b.dataset.c);$("acc").value=b.dataset.c;store.set("gov.ac",b.dataset.c);markSw(b.dataset.c)});
-$("acc").oninput=e=>{setAcc(e.target.value);store.set("gov.ac",e.target.value);markSw("")};
-$("accReset").onclick=()=>{store.del("gov.ac");const t=MAN&&MAN.theme&&MAN.theme.accent;setAcc(/^#[0-9a-f]{6}$/i.test(t||"")?t:SW[0]);$("acc").value=SW[0];markSw(SW[0])};
 
-// ---- маніфест адміністрації ----
+// ---- гра: єдине джерело стану для нижньої панелі ----
+const G={exe:"",running:false,ov:false};
+function renderGs(){
+  let s,t;
+  if(!G.exe){s="none";t="Гра не вибрана"}
+  else if(!G.running){s="wait";t="Очікування запуску гри"}
+  else{s="run";t=G.ov?"Гру запущено · Оверлей активний":"Гру запущено"}
+  $("gs").textContent=t;$("gdot").dataset.s=s;
+}
+function syncExeUi(){
+  const on=$("autoov").checked;$("exe").disabled=!on;$("pick").disabled=!on;
+  $("exeHint").textContent=on?"Назва .exe або повний шлях. За ним визначається, чи запущена гра.":"Увімкніть автоматичний запуск оверлею, щоб вказати гру.";
+}
+function setExe(v){G.exe=String(v||"").trim();store.set("gov.exe",G.exe);if(TAURI)invoke("set_game_exe",{name:G.exe});renderGs()}
+$("exe").onchange=()=>setExe($("exe").value);
+$("pick").onclick=async()=>{if(!TAURI){toast("Вибір файлу доступний у застосунку");return}const p=await invoke("pick_exe");if(p){$("exe").value=p;setExe(p)}};
+$("autoov").onchange=e=>{store.set("gov.autoov",e.target.checked?"1":"0");syncExeUi();if(TAURI)invoke("set_auto_overlay",{enabled:e.target.checked})};
+
+// ---- вікно: рамка, закриття, власні кнопки ----
+function applyFrame(custom){document.body.classList.toggle("sysframe",!custom);if(TAURI&&!OVERLAY)invoke("set_frame",{custom})}
+$("frame").onchange=()=>{store.set("gov.frame",$("frame").value);applyFrame($("frame").value==="custom")};
+$("closeb").onchange=()=>{store.set("gov.close",$("closeb").value);if(TAURI)invoke("set_close_mode",{tray:$("closeb").value==="tray"})};
+const wc=a=>{if(!TAURI)return;invoke("win_ctl",{action:a}).then(m=>document.body.classList.toggle("maxd",!!m)).catch(()=>{})};
+$("wMin").onclick=()=>wc("min");$("wMax").onclick=()=>wc("max");$("wClose").onclick=()=>wc("close");
+
+// ---- теми ----
+const PRESETS=[
+  {id:"p-tac",name:"Tactical Night",ac:"#8fa56b",p:"#141a16",r:6},
+  {id:"p-state",name:"State Dark",ac:"#6a8fb8",p:"#151a23",r:8},
+  {id:"p-em",name:"Emerald Ops",ac:"#4fa383",p:"#121a19",r:12},
+  {id:"p-olymp",name:"Olymp Default",ac:"#c4a05a",p:"#151a21",r:10}];
+const HEX=/^#[0-9a-f]{6}$/i;
+const hex2=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+const mix=(h,t,a)=>{const x=hex2(h),y=hex2(t);return "#"+x.map((v,i)=>Math.round(v+(y[i]-v)*a).toString(16).padStart(2,"0")).join("")};
+const lum=h=>{const[r,g,b]=hex2(h);return(.299*r+.587*g+.114*b)/255};
+function applyTheme(t){
+  const s=document.documentElement.style,bg=mix(t.p,"#000000",.45);
+  s.setProperty("--ac",t.ac);s.setProperty("--acx",lum(t.ac)>.6?"#14110a":"#f4f1ea");
+  s.setProperty("--l2",t.p);s.setProperty("--l1",mix(t.p,"#000000",.25));s.setProperty("--l3",mix(t.p,"#ffffff",.05));
+  s.setProperty("--bg",bg);s.setProperty("--bgrgb",hex2(bg).join(","));s.setProperty("--r",t.r+"px");
+}
+let THEMES=[],THEME="p-olymp";
+const allThemes=()=>[...PRESETS,...THEMES];
+function loadThemes(){
+  const a=parse(store.get("gov.themes"));
+  THEMES=(Array.isArray(a)?a:[]).filter(t=>t&&HEX.test(t.ac)&&HEX.test(t.p)).slice(0,5);
+  THEME=store.get("gov.theme")||"p-olymp";
+}
+function pickTheme(){
+  const t=allThemes().find(x=>x.id===THEME)||PRESETS[3];
+  // колір акценту з manifest.json діє лише доки гравець сам не обрав тему
+  const acc2=!store.get("gov.theme")&&MAN&&MAN.theme&&HEX.test(MAN.theme.accent||"")?MAN.theme.accent:t.ac;
+  applyTheme({...t,ac:acc2});renderThemes();
+}
+function renderThemes(){
+  const b=t=>`<button class="theme ${t.id===THEME?"on":""}" data-id="${esc(t.id)}" style="--c:${t.ac};--p:${t.p}"><i></i>${esc(t.name)}</button>`;
+  $("themes").innerHTML=PRESETS.map(b).join("");
+  $("cthemes").innerHTML=THEMES.map(t=>b(t)+`<button class="del" data-del="${esc(t.id)}" aria-label="Видалити тему ${esc(t.name)}">×</button>`).join("")||'<span class="note">Власних тем ще немає</span>';
+  $("newTheme").disabled=THEMES.length>=5;$("themeCnt").textContent=`(${THEMES.length} з 5)`;
+}
+$("themes").onclick=$("cthemes").onclick=e=>{
+  const d=e.target.closest("[data-del]");
+  if(d){THEMES=THEMES.filter(t=>t.id!==d.dataset.del);store.set("gov.themes",JSON.stringify(THEMES));if(THEME===d.dataset.del){THEME="p-olymp";store.set("gov.theme","p-olymp")}pickTheme();return}
+  const b=e.target.closest("[data-id]");if(b){THEME=b.dataset.id;store.set("gov.theme",THEME);pickTheme()}
+};
+const tm=$("themeModal");
+const prevTheme=()=>{const r=+$("tr").value;$("trv").textContent=r;applyTheme({ac:$("ta").value,p:$("tp").value,r})};
+["ta","tp","tr"].forEach(i=>$(i).addEventListener("input",prevTheme));
+$("newTheme").onclick=()=>{
+  if(THEMES.length>=5)return;
+  const t=allThemes().find(x=>x.id===THEME)||PRESETS[3];
+  $("tn").value="";$("ta").value=t.ac;$("tp").value=t.p;$("tr").value=t.r;$("trv").textContent=t.r;
+  tm.classList.remove("hide");$("tn").focus();
+};
+$("tcancel").onclick=()=>{tm.classList.add("hide");pickTheme()};
+tm.addEventListener("click",e=>{if(e.target===tm){tm.classList.add("hide");pickTheme()}});
+$("tsave").onclick=()=>{
+  const t={id:"c"+Date.now().toString(36),name:($("tn").value.trim()||`Тема ${THEMES.length+1}`).slice(0,24),ac:$("ta").value,p:$("tp").value,r:+$("tr").value};
+  THEMES.push(t);store.set("gov.themes",JSON.stringify(THEMES));THEME=t.id;store.set("gov.theme",t.id);
+  tm.classList.add("hide");pickTheme();
+};
+
+// ---- новини, маніфест адміністрації ----
+let NEWS=[];
+const dmy=s=>{const m=/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(String(s||"").trim());return m?new Date(+m[3],+m[2]-1,+m[1]).getTime():null};
+const newsItem=i=>`<article class="item"><time>${esc(i.date)}</time><div><h3>${esc(i.title)}</h3><p>${esc(i.text)}</p></div></article>`;
+function setNews(items){
+  NEWS=[...(items||[])];
+  if(NEWS.length&&NEWS.every(i=>dmy(i.date)!==null))NEWS.sort((a,b)=>dmy(b.date)-dmy(a.date));
+  $("news").innerHTML=NEWS.length?NEWS.slice(0,2).map(newsItem).join(""):'<div class="empty">Новини ще не опубліковано. Адміністрація додає їх у news.json.</div>';
+  $("newsMore").hidden=NEWS.length<=2;
+  $("newsAll").innerHTML=NEWS.map(newsItem).join("");
+}
+$("newsMore").onclick=()=>$("newsModal").classList.remove("hide");
+$("newsClose").onclick=()=>$("newsModal").classList.add("hide");
+$("newsModal").addEventListener("click",e=>{if(e.target.id==="newsModal")$("newsModal").classList.add("hide")});
 function applyManifest(m){
   if(typeof m.miranda==="string"&&m.miranda.trim())MIR=m.miranda;
-  if(!store.get("gov.ac")&&m.theme&&/^#[0-9a-f]{6}$/i.test(m.theme.accent||""))setAcc(m.theme.accent);
   if(m.min_launcher){MINV=String(m.min_launcher);verCheck()}
   if(m.links)$("links").innerHTML=Object.entries(m.links).map(([k,u])=>`<button data-u="${esc(u)}">${esc(k)}</button>`).join("");
   if(m.banner){$("banner").textContent=m.banner.text||"";$("banner").dataset.u=m.banner.url||""}
-  if(m.news_url&&!OVERLAY)fetch(m.news_url,{cache:"no-store"}).then(r=>r.json()).then(n=>{$("news").innerHTML=n.items.slice(0,10).map(i=>`<article class="item"><time>${esc(i.date)}</time><div><h3>${esc(i.title)}</h3><p>${esc(i.text)}</p></div></article>`).join("")}).catch(()=>{});
+  pickTheme();
 }
 document.addEventListener("click",e=>{
   const b=e.target.closest("[data-u]");if(!b)return;const u=b.dataset.u;
   if(!u.startsWith("https://")){toast("Посилання ще не налаштоване адміністрацією");return}
   TAURI?invoke("open_url",{url:u}):window.open(u,"_blank","noopener");
 });
+
+// ---- читання кодексів (вкладка «База даних») ----
+let rcur=null;
+const docHtml=a=>`<article class="doc"><div class="dh"><b>Ст. ${esc(a.number)}</b>${esc(a.title)}</div><p>${esc(a.description)}</p><div class="dm">Штраф ${fmt(a.fine)} · КПЗ ${a.jail_minutes?a.jail_minutes+" хв":"—"} · Розшук ${"★".repeat(a.wanted_level)||"—"} · Застава ${a.jail_minutes>0?(a.bail?fmt(a.bail):"немає"):"—"}</div></article>`;
+function renderReader(){
+  if(!CATS.length){$("rlist").innerHTML="";$("rbody").innerHTML='<div class="empty">База порожня.</div>';return}
+  if(!CATS.find(c=>c.id===rcur))rcur=CATS[0].id;
+  $("rlist").innerHTML=CATS.map(c=>`<button class="rl ${c.id===rcur?"on":""}" data-c="${esc(c.id)}"><span class="badge ${esc(c.color)}">${esc(c.abbr)}</span><span class="ct">${esc(c.title.replace(/\s*\([^)]{1,8}\)\s*$/,""))}</span><span class="cnt">${c.groups.reduce((s,g)=>s+g.articles.length,0)}</span></button>`).join("");
+  const c=CATS.find(x=>x.id===rcur),q=norm($("rq").value.trim()).split(/\s+/).filter(Boolean);let h="";
+  for(const g of c.groups){
+    const arts=g.articles.filter(a=>{const t=norm([a.number,a.title,a.description,...(a.tags||[])].join(" "));return q.every(w=>t.includes(w))});
+    if(!arts.length)continue;if(g.title)h+=`<div class="sec">${esc(g.title)}</div>`;h+=arts.map(docHtml).join("");
+  }
+  $("rbody").innerHTML=h||'<div class="empty">Нічого не знайдено.</div>';
+}
+$("rlist").addEventListener("click",e=>{const b=e.target.closest("[data-c]");if(b){rcur=b.dataset.c;renderReader()}});
+$("rq").addEventListener("input",()=>requestAnimationFrame(renderReader));
 
 // ---- оновлення застосунку ----
 let APPV="",MINV="";
@@ -282,12 +389,14 @@ async function installUpdate(){
 $("chk").onclick=()=>checkUpdate(true);$("updBtn").onclick=installUpdate;
 
 async function bootTauri(){
-  await invoke("set_game_exe",{name:$("exe").value.trim()});
-  const gs=r=>{$("gs").textContent=r?"Гру знайдено":"Гру не запущено";$("gs").style.color=r?"var(--grn)":""};
-  window.__TAURI__.event.listen("game-status",e=>gs(e.payload));invoke("game_status").then(gs);
-  window.__TAURI__.event.listen("overlay-mode",e=>document.body.classList.toggle("framed",e.payload==="window"));
-  window.__TAURI__.event.listen("update-progress",e=>{const{got,total}=e.payload,pc=total?got/total*100:0;$("prog").value=pc;const bb=$("bootBar");if(bb)bb.value=22+pc*.7});
-  let rl=0;window.__TAURI__.event.listen("vault-changed",e=>{
+  const ev=window.__TAURI__.event;
+  await invoke("set_game_exe",{name:G.exe});
+  ev.listen("game-status",e=>{G.running=!!e.payload;renderGs()});
+  ev.listen("overlay-active",e=>{G.ov=!!e.payload;renderGs()});
+  invoke("game_state").then(s=>{G.running=!!s.running;G.ov=!!s.overlay;renderGs()});
+  ev.listen("overlay-mode",e=>document.body.classList.toggle("framed",e.payload==="window"));
+  ev.listen("update-progress",e=>{const{got,total}=e.payload,pc=total?got/total*100:0;$("prog").value=pc;bp(22+pc*.7)});
+  let rl=0;ev.listen("vault-changed",e=>{
     const{key,value,src}=e.payload;if(src===(OVERLAY?"overlay":"main"))return;
     if(value===null)delete MEM[key];else MEM[key]=value;
     if(OVERLAY&&(key.startsWith("gov.")||key==="laws.cache"||key==="faq.cache"||key==="manifest.cache")){clearTimeout(rl);rl=setTimeout(()=>location.reload(),300)}
@@ -295,14 +404,22 @@ async function bootTauri(){
   });
   invoke("app_version").then(v=>{APPV=v;$("appv").textContent="v"+v;$("setv").textContent="v"+v;verCheck()});
   const lm=store.get("gov.lm");if(lm&&lm!=="ask")invoke("set_overlay_mode",{mode:lm});
-  if(!OVERLAY)setHK(hotkey);
+  invoke("set_auto_overlay",{enabled:$("autoov").checked});
+  invoke("set_close_mode",{tray:$("closeb").value==="tray"});
+  if(!OVERLAY){setHK(hotkey);applyFrame($("frame").value==="custom")}
 }
 
-// ---- завантажувач (bootstrapper) ----
+// ---- завантажувач (bootstrapper): прогрес показує окреме вікно splash ----
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rj)=>setTimeout(()=>rj(new Error("timeout")),ms))]);
-const bp=(v,t)=>{const b=$("bootBar");if(b)b.value=v;if(t&&$("bootTxt"))$("bootTxt").textContent=t};
-function hideBoot(){const b=$("boot");if(!b)return;b.classList.add("done");setTimeout(()=>b.remove(),450)}
+const bp=(v,t)=>{if(TAURI&&!OVERLAY)window.__TAURI__.event.emit("boot-progress",{v,t}).catch(()=>{})};
+const BOOT_MIN=2600,T0=Date.now();
+async function finish(){
+  const w=BOOT_MIN-(Date.now()-T0);if(w>0)await sleep(w);
+  bp(100,"Готово");await sleep(250);
+  const show=()=>document.body.classList.remove("pre");
+  if(TAURI){setTimeout(show,480);invoke("finish_boot").catch(show)}else show();
+}
 async function preload(){
   if(!TAURI)return[];
   for(let i=0;i<15;i++){try{const r=await invoke("vault_dump");Object.assign(MEM,r.data);return r.restored||[]}catch(e){await sleep(200)}}
@@ -310,41 +427,45 @@ async function preload(){
 }
 function initUi(){
   document.querySelectorAll("[data-tg]").forEach(e=>e.dataset.u=TG_URL);
-  const h=store.get("gov.hk");if(h)setHK(h);
+  if(!TAURI)document.body.classList.add("web");
+  const h=store.get("gov.hk");if(h){hotkey=h;$("hk1").textContent=h;$("hk2").textContent=h}
   const o=store.get("gov.op");if(o){$("op").value=o;$("op").oninput({target:$("op")})}
   const f=store.get("gov.fz");if(f){$("fz").value=f;$("fz").oninput({target:$("fz")})}
-  const a=store.get("gov.ac");if(a){setAcc(a);$("acc").value=a;markSw(a)}else markSw(SW[0]);
+  loadThemes();pickTheme();
+  G.exe=store.get("gov.exe")||"";$("exe").value=G.exe;
+  $("autoov").checked=store.get("gov.autoov")==="1";syncExeUi();renderGs();
+  const fr=store.get("gov.frame")||"custom";$("frame").value=fr;document.body.classList.toggle("sysframe",fr!=="custom");
+  $("closeb").value=store.get("gov.close")||"tray";
   $("auto").checked=store.get("gov.auto")==="1";
   $("autoupd").checked=store.get("gov.autoupd")!=="0";
   $("lm").value=store.get("gov.lm")||"ask";
-  const ex=store.get("gov.exe");if(ex)$("exe").value=ex;
   if(OVERLAY){document.body.classList.add("ov");tab("laws")}else addEventListener("online",()=>loadAll(false));
   addEventListener("offline",()=>setNet(false));
 }
 $("autoupd").onchange=e=>store.set("gov.autoupd",e.target.checked?"1":"0");
 
 async function main(){
-  if(OVERLAY)$("boot").remove();
+  if(OVERLAY)document.body.classList.remove("pre");
+  bp(6,"Ініціалізація…");
   const restored=await preload();
   initUi();
   if(TAURI)await bootTauri();
   if(OVERLAY){loadNotes();loadFromStore();return}
   loadNotes();
-  bp(6,"Запуск…");
-  if(restored.length){bp(10,"Виявлено пошкоджені або змінені локальні файли. Відновлюємо їх із сервера…");await sleep(1200)}
-  // 1. Перевірка і встановлення оновлення застосунку (підписане, з прогресом); після встановлення застосунок перезапускається
+  bp(22,"Ініціалізація…");await sleep(450);
+  if(restored.length){bp(26,"Виявлено пошкоджені локальні файли. Відновлюємо…");await sleep(1000)}
+  // 1. Оновлення застосунку (підписане): завантажується з прогресом, після встановлення застосунок перезапускається
   if(TAURI&&store.get("gov.autoupd")!=="0"&&navigator.onLine){
-    bp(18,"Перевірка оновлень…");
-    try{
-      const u=await withTimeout(invoke("check_update"),9000);
-      if(u){bp(22,`Завантаження версії ${u.version}…`);
-        try{await invoke("install_update");return}
-        catch(e){bp(35,"Не вдалося встановити оновлення. Запускаємо поточну версію…");await sleep(900)}}
-    }catch(e){}
-  }
-  // 2. Дані: маніфест, закони, довідник
-  await loadAll(false,bp);
-  await sleep(250);hideBoot();
+    bp(34,"Перевірка оновлень…");
+    const u=(await Promise.all([withTimeout(invoke("check_update"),9000).catch(()=>null),sleep(700)]))[0];
+    if(u){bp(40,`Завантаження версії ${u.version}…`);
+      try{await invoke("install_update");return}
+      catch(e){bp(45,"Не вдалося встановити оновлення. Запускаємо поточну версію…");await sleep(900)}}
+  }else{bp(34,"Перевірка оновлень…");await sleep(500)}
+  // 2. Модулі й дані: маніфест, закони, довідник
+  bp(52,"Завантаження модулів…");
+  await loadAll(false,(v,t)=>bp(55+v*.4,t));
+  await finish();
   if(restored.length)toast("Пошкоджені локальні файли відновлено");
   if(TAURI&&store.get("gov.autoupd")==="0")checkUpdate(false);
 }

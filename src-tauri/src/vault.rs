@@ -18,7 +18,7 @@ const SLOTS: [&str; 3] = ["settings", "cache", "notes"];
 pub fn slot(key: &str) -> &'static str {
     match key {
         "notes.cache" => "notes",
-        "laws.cache" | "faq.cache" | "manifest.cache" => "cache",
+        "laws.cache" | "faq.cache" | "manifest.cache" | "news.cache" => "cache",
         _ => "settings",
     }
 }

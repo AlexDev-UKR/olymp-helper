@@ -6,24 +6,33 @@ use std::sync::Mutex;
 use std::{thread, time::Duration};
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 use tauri::menu::{Menu, MenuItem};
-use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, State, WindowEvent, Wry};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Emitter, LogicalSize, Manager, State, WebviewWindow, WindowEvent, Wry};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt as _};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_updater::UpdaterExt;
 
+const MAIN_W: f64 = 1060.0;
+const MAIN_H: f64 = 680.0;
+
 struct Game { exe: Mutex<String>, running: AtomicBool }
 struct Mode(Mutex<String>);
-struct VaultState(vault::Vault);
+struct Hotkey(Mutex<String>);
+struct Flags { overlay_active: AtomicBool, auto_overlay: AtomicBool, close_tray: AtomicBool }
 struct TrayToggle(MenuItem<Wry>);
+struct VaultState(vault::Vault);
 
+// ---------- вікна ----------
 fn show_main(app: &AppHandle) {
+    if app.get_webview_window("splash").is_some() { return; } // під час запуску головне вікно покаже завантажувач
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
         let _ = w.unminimize();
+        let _ = w.set_always_on_top(true); // «на передній план»
         let _ = w.set_focus();
+        let _ = w.set_always_on_top(false);
     }
 }
 
@@ -45,7 +54,26 @@ fn apply(app: &AppHandle, mode: &str) {
     }
 }
 
+// Глобальна клавіша реєструється лише поки оверлей «активний» (запущений вручну або грою),
+// тож вона не перехоплює клавішу в інших програмах.
+fn sync_hotkey(app: &AppHandle) -> Result<(), String> {
+    let gs = app.global_shortcut();
+    gs.unregister_all().map_err(|e| e.to_string())?;
+    if app.state::<Flags>().overlay_active.load(Ordering::Relaxed) {
+        let sc = app.state::<Hotkey>().0.lock().unwrap().clone();
+        if !sc.is_empty() { gs.register(sc.as_str()).map_err(|e| e.to_string())?; }
+    }
+    Ok(())
+}
+
+fn set_overlay_active(app: &AppHandle, on: bool) {
+    app.state::<Flags>().overlay_active.store(on, Ordering::Relaxed);
+    let _ = app.emit("overlay-active", on);
+    let _ = sync_hotkey(app);
+}
+
 fn toggle(app: &AppHandle) {
+    if !app.state::<Flags>().overlay_active.load(Ordering::Relaxed) { show_main(app); return; }
     if let Some(w) = app.get_webview_window("overlay") {
         if w.is_visible().unwrap_or(false) {
             let _ = w.hide();
@@ -56,9 +84,83 @@ fn toggle(app: &AppHandle) {
     }
 }
 
+// Одноекземплярність: другий запуск показує це вікно в першому екземплярі, після «Добре» головне вікно виходить з трею.
+fn show_notice(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("notice") { let _ = w.set_focus(); return; }
+    let _ = tauri::WebviewWindowBuilder::new(app, "notice", tauri::WebviewUrl::App("notice.html".into()))
+        .title("Olymp Helper")
+        .inner_size(420.0, 240.0)
+        .center()
+        .decorations(false)
+        .transparent(true)
+        .resizable(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .shadow(false)
+        .build();
+}
+
+#[tauri::command]
+fn notice_ok(app: AppHandle) {
+    if let Some(w) = app.get_webview_window("notice") { let _ = w.close(); } // Destroyed → show_main
+}
+
+// Закриває вікно завантаження (з плавним зникненням) і показує головне вікно. Безпечно викликати повторно.
+fn finish_boot(app: &AppHandle) {
+    if let Some(s) = app.get_webview_window("splash") {
+        let _ = s.emit("boot-done", ());
+        let a = app.clone();
+        thread::spawn(move || {
+            thread::sleep(Duration::from_millis(450));
+            if let Some(m) = a.get_webview_window("main") {
+                let _ = m.show();
+                let _ = m.set_focus();
+            }
+            if let Some(s) = a.get_webview_window("splash") { let _ = s.close(); }
+        });
+    }
+}
+
+#[tauri::command]
+fn finish_boot_cmd(app: AppHandle) { finish_boot(&app) }
+
+// ---------- керування вікном (власна рамка) ----------
+#[tauri::command]
+fn win_ctl(w: WebviewWindow, action: String) -> bool {
+    match action.as_str() {
+        "min" => { let _ = w.minimize(); }
+        "max" => {
+            if w.is_maximized().unwrap_or(false) {
+                let _ = w.unmaximize();
+                let _ = w.set_resizable(false);
+            } else {
+                let _ = w.set_resizable(true);
+                let _ = w.maximize();
+            }
+        }
+        "close" => { let _ = w.close(); }
+        _ => {}
+    }
+    w.is_maximized().unwrap_or(false)
+}
+
+#[tauri::command]
+fn set_frame(app: AppHandle, custom: bool) {
+    if let Some(w) = app.get_webview_window("main") {
+        if w.is_maximized().unwrap_or(false) { return; }
+        let _ = w.set_decorations(!custom);
+        let _ = w.set_size(LogicalSize::new(MAIN_W, MAIN_H));
+    }
+}
+
+#[tauri::command]
+fn set_close_mode(app: AppHandle, tray: bool) { app.state::<Flags>().close_tray.store(tray, Ordering::Relaxed); }
+
+// ---------- оверлей ----------
 #[tauri::command]
 fn show_overlay(app: AppHandle, mode: String, state: State<Mode>) {
     *state.0.lock().unwrap() = mode.clone();
+    set_overlay_active(&app, true);
     apply(&app, &mode);
     hide_main(&app); // лаунчер згортається в трей і працює у фоні
 }
@@ -67,25 +169,65 @@ fn show_overlay(app: AppHandle, mode: String, state: State<Mode>) {
 fn set_overlay_mode(mode: String, state: State<Mode>) { *state.0.lock().unwrap() = mode; }
 
 #[tauri::command]
-fn toggle_overlay(app: AppHandle) { toggle(&app) }
+fn toggle_overlay(app: AppHandle) {
+    if let Some(w) = app.get_webview_window("overlay") {
+        if w.is_visible().unwrap_or(false) { let _ = w.hide(); return; }
+    }
+    toggle(&app);
+}
 
 #[tauri::command]
-fn set_game_exe(name: String, state: State<Game>) { *state.exe.lock().unwrap() = name; }
-
-#[tauri::command]
-fn game_status(state: State<Game>) -> bool { state.running.load(Ordering::Relaxed) }
+fn set_auto_overlay(app: AppHandle, enabled: bool) {
+    app.state::<Flags>().auto_overlay.store(enabled, Ordering::Relaxed);
+    let running = app.state::<Game>().running.load(Ordering::Relaxed);
+    if enabled && running && !app.state::<Flags>().overlay_active.load(Ordering::Relaxed) {
+        set_overlay_active(&app, true);
+        let m = app.state::<Mode>().0.lock().unwrap().clone();
+        apply(&app, &m);
+    }
+}
 
 #[tauri::command]
 fn set_hotkey(app: AppHandle, shortcut: String) -> Result<(), String> {
-    let gs = app.global_shortcut();
-    gs.unregister_all().map_err(|e| e.to_string())?;
-    gs.register(shortcut.as_str()).map_err(|e| e.to_string())?;
+    *app.state::<Hotkey>().0.lock().unwrap() = shortcut.clone();
+    sync_hotkey(&app)?;
     if let Some(t) = app.try_state::<TrayToggle>() {
         let _ = t.0.set_text(format!("Показати/сховати оверлей ({})", shortcut.replace("CommandOrControl", "Ctrl")));
     }
     Ok(())
 }
 
+// ---------- гра ----------
+#[tauri::command]
+fn set_game_exe(name: String, state: State<Game>) { *state.exe.lock().unwrap() = name; }
+
+#[tauri::command]
+fn game_state(app: AppHandle) -> serde_json::Value {
+    serde_json::json!({
+        "running": app.state::<Game>().running.load(Ordering::Relaxed),
+        "overlay": app.state::<Flags>().overlay_active.load(Ordering::Relaxed)
+    })
+}
+
+// Приймає ім'я процесу ("GTA5.exe") або повний шлях до .exe. За повного шляху додатково звіряється розташування файлу.
+fn is_running(sys: &mut System, raw: &str) -> bool {
+    let raw = raw.trim().trim_matches('"').to_lowercase().replace('/', "\\");
+    if raw.is_empty() { return false; }
+    let name = raw.rsplit('\\').next().unwrap_or("").to_string();
+    let full = raw.contains('\\');
+    sys.refresh_processes_specifics(
+        ProcessesToUpdate::All,
+        true,
+        ProcessRefreshKind::new().with_exe(UpdateKind::OnlyIfNotSet),
+    );
+    sys.processes().values().any(|p| {
+        if p.name().to_string_lossy().to_lowercase() != name { return false; }
+        if !full { return true; }
+        p.exe().map(|e| e.to_string_lossy().to_lowercase() == raw).unwrap_or(true)
+    })
+}
+
+// ---------- система ----------
 #[tauri::command]
 fn set_autostart(app: AppHandle, enabled: bool) -> Result<(), String> {
     let m = app.autolaunch();
@@ -104,33 +246,9 @@ fn open_url(app: AppHandle, url: String) -> Result<(), String> {
     app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
 }
 
+// ---------- оновлення ----------
 fn updater(app: &AppHandle) -> Result<tauri_plugin_updater::Updater, String> {
     app.updater_builder().timeout(Duration::from_secs(8)).build().map_err(|e| e.to_string())
-}
-
-fn vault(app: &AppHandle) -> Result<State<'_, VaultState>, String> {
-    app.try_state::<VaultState>().ok_or_else(|| "сховище ще не готове".to_string())
-}
-
-// Усі локальні дані (налаштування, кеш законів/довідника, нотатки) лежать у зашифрованих файлах в AppData.
-#[tauri::command]
-fn vault_dump(app: AppHandle) -> Result<serde_json::Value, String> {
-    let v = vault(&app)?;
-    Ok(serde_json::json!({ "data": v.0.dump(), "restored": v.0.restored }))
-}
-
-#[tauri::command]
-fn vault_set(app: AppHandle, key: String, value: String, src: String) -> Result<(), String> {
-    vault(&app)?.0.set(&key, value.clone()).map_err(|e| e.to_string())?;
-    let _ = app.emit("vault-changed", serde_json::json!({ "key": key, "value": value, "src": src }));
-    Ok(())
-}
-
-#[tauri::command]
-fn vault_del(app: AppHandle, key: String, src: String) -> Result<(), String> {
-    vault(&app)?.0.del(&key).map_err(|e| e.to_string())?;
-    let _ = app.emit("vault-changed", serde_json::json!({ "key": key, "value": serde_json::Value::Null, "src": src }));
-    Ok(())
 }
 
 #[tauri::command]
@@ -159,29 +277,39 @@ async fn install_update(app: AppHandle) -> Result<(), String> {
     app.restart()
 }
 
-// Приймає ім'я процесу ("GTA5.exe") або повний шлях до .exe.
-// За повного шляху додатково звіряється розташування файлу.
-fn is_running(sys: &mut System, raw: &str) -> bool {
-    let raw = raw.trim().trim_matches('"').to_lowercase().replace('/', "\\");
-    if raw.is_empty() { return false; }
-    let name = raw.rsplit('\\').next().unwrap_or("").to_string();
-    let full = raw.contains('\\');
-    sys.refresh_processes_specifics(
-        ProcessesToUpdate::All,
-        true,
-        ProcessRefreshKind::new().with_exe(UpdateKind::OnlyIfNotSet),
-    );
-    sys.processes().values().any(|p| {
-        if p.name().to_string_lossy().to_lowercase() != name { return false; }
-        if !full { return true; }
-        p.exe().map(|e| e.to_string_lossy().to_lowercase() == raw).unwrap_or(true)
-    })
+// ---------- зашифроване сховище ----------
+fn vault(app: &AppHandle) -> Result<State<'_, VaultState>, String> {
+    app.try_state::<VaultState>().ok_or_else(|| "сховище ще не готове".to_string())
+}
+
+#[tauri::command]
+fn vault_dump(app: AppHandle) -> Result<serde_json::Value, String> {
+    let v = vault(&app)?;
+    Ok(serde_json::json!({ "data": v.0.dump(), "restored": v.0.restored }))
+}
+
+#[tauri::command]
+fn vault_set(app: AppHandle, key: String, value: String, src: String) -> Result<(), String> {
+    vault(&app)?.0.set(&key, value.clone()).map_err(|e| e.to_string())?;
+    let _ = app.emit("vault-changed", serde_json::json!({ "key": key, "value": value, "src": src }));
+    Ok(())
+}
+
+#[tauri::command]
+fn vault_del(app: AppHandle, key: String, src: String) -> Result<(), String> {
+    vault(&app)?.0.del(&key).map_err(|e| e.to_string())?;
+    let _ = app.emit("vault-changed", serde_json::json!({ "key": key, "value": serde_json::Value::Null, "src": src }));
+    Ok(())
 }
 
 fn main() {
     tauri::Builder::default()
+        // має реєструватися першим
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_notice(app)))
         .manage(Game { exe: Mutex::new(String::new()), running: AtomicBool::new(false) })
         .manage(Mode(Mutex::new("overlay".to_string())))
+        .manage(Hotkey(Mutex::new("F5".to_string())))
+        .manage(Flags { overlay_active: AtomicBool::new(false), auto_overlay: AtomicBool::new(false), close_tray: AtomicBool::new(true) })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -194,13 +322,30 @@ fn main() {
                 .build(),
         )
         .setup(|app| {
+            // --- вікно завантаження (без рамки, заокруглене); головне вікно поки прихове ---
+            if let Some(w) = app.get_webview_window("main") { let _ = w.hide(); }
+            tauri::WebviewWindowBuilder::new(app, "splash", tauri::WebviewUrl::App("splash.html".into()))
+                .title("Olymp Helper")
+                .inner_size(480.0, 300.0)
+                .center()
+                .decorations(false)
+                .transparent(true)
+                .resizable(false)
+                .always_on_top(true)
+                .skip_taskbar(true)
+                .shadow(false)
+                .build()?;
+            // запобіжник: якщо інтерфейс не завершив запуск за 30 с, усе одно показуємо головне вікно
+            let hb = app.handle().clone();
+            thread::spawn(move || { thread::sleep(Duration::from_secs(30)); finish_boot(&hb); });
+
             // --- зашифроване сховище (секрет задається під час збірки, ключ прив'язаний до ПК) ---
             let dir = app.path().app_data_dir()?;
             let machine = machine_uid::get().unwrap_or_else(|_| "unknown".into());
             let secret = option_env!("OLYMP_STORE_SECRET").unwrap_or("olymp-dev-secret");
             app.manage(VaultState(vault::Vault::open(dir, secret, &machine)));
 
-            // --- системний трей ---
+            // --- системний трей: клік по іконці розгортає вікно ---
             let open = MenuItem::with_id(app, "open", "Відкрити Olymp Helper", true, None::<&str>)?;
             let tog = MenuItem::with_id(app, "toggle", "Показати/сховати оверлей (F5)", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Вийти", true, None::<&str>)?;
@@ -218,13 +363,13 @@ fn main() {
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, ev| {
-                    if let TrayIconEvent::DoubleClick { button: MouseButton::Left, .. } = ev {
+                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = ev {
                         show_main(tray.app_handle());
                     }
                 })
                 .build(app)?;
 
-            // --- моніторинг процесу гри (кожні 2 с, подія лише при зміні стану) ---
+            // --- моніторинг гри: подія лише при зміні стану; автозапуск і автозакриття оверлею ---
             let h = app.handle().clone();
             thread::spawn(move || {
                 let mut sys = System::new();
@@ -233,24 +378,45 @@ fn main() {
                     let running = is_running(&mut sys, &raw);
                     if h.state::<Game>().running.swap(running, Ordering::Relaxed) != running {
                         let _ = h.emit("game-status", running);
+                        if h.state::<Flags>().auto_overlay.load(Ordering::Relaxed) {
+                            if running {
+                                set_overlay_active(&h, true);
+                                let m = h.state::<Mode>().0.lock().unwrap().clone();
+                                apply(&h, &m);
+                            } else {
+                                if let Some(w) = h.get_webview_window("overlay") { let _ = w.hide(); }
+                                set_overlay_active(&h, false);
+                            }
+                        }
                     }
                     thread::sleep(Duration::from_secs(2));
                 }
             });
             Ok(())
         })
-        .on_window_event(|w, e| {
-            if let WindowEvent::CloseRequested { api, .. } = e {
-                match w.label() {
-                    "main" => w.app_handle().exit(0),
-                    "overlay" => { api.prevent_close(); let _ = w.hide(); }
-                    _ => {}
+        .on_window_event(|w, e| match e {
+            WindowEvent::CloseRequested { api, .. } => match w.label() {
+                "main" => {
+                    if w.app_handle().state::<Flags>().close_tray.load(Ordering::Relaxed) {
+                        api.prevent_close();
+                        let _ = w.hide();
+                    } else {
+                        w.app_handle().exit(0);
+                    }
                 }
+                "overlay" => { api.prevent_close(); let _ = w.hide(); }
+                _ => {}
+            },
+            WindowEvent::Destroyed => {
+                if w.label() == "notice" { show_main(w.app_handle()); }
             }
+            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
-            toggle_overlay, show_overlay, set_overlay_mode, set_game_exe, game_status,
-            set_hotkey, set_autostart, pick_exe, open_url, app_version, check_update, install_update, vault_dump, vault_set, vault_del
+            toggle_overlay, show_overlay, set_overlay_mode, set_auto_overlay, set_close_mode,
+            set_game_exe, game_state, set_hotkey, set_autostart, pick_exe, open_url,
+            app_version, check_update, install_update, vault_dump, vault_set, vault_del,
+            finish_boot_cmd, notice_ok, win_ctl, set_frame
         ])
         .run(tauri::generate_context!())
         .expect("помилка запуску Olymp Helper");

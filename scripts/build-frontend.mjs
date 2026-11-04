@@ -4,16 +4,25 @@ import Obf from "javascript-obfuscator";
 const dev = process.argv.includes("--dev");
 fs.rmSync("dist", { recursive: true, force: true });
 fs.mkdirSync("dist", { recursive: true });
-const css = fs.readFileSync("src/style.css", "utf8");
-const html = fs.readFileSync("src/index.html", "utf8");
-const js = fs.readFileSync("src/config.js", "utf8") + "\n" + fs.readFileSync("src/app.js", "utf8");
+const rd = p => fs.readFileSync(`src/${p}`, "utf8");
 const minCss = s => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\s+/g, " ").replace(/\s*([{};,])\s*/g, "$1");
-fs.writeFileSync("dist/style.css", dev ? css : minCss(css));
-fs.writeFileSync("dist/index.html", dev ? html : html.replace(/>\s+</g, "><"));
-fs.writeFileSync("dist/app.js", dev ? js : Obf.obfuscate(js, {
-  compact: true, simplify: true, target: "browser", renameGlobals: false,
-  identifierNamesGenerator: "hexadecimal",
-  stringArray: true, stringArrayEncoding: ["base64"], stringArrayThreshold: 0.9, rotateStringArray: true,
-  splitStrings: true, splitStringsChunkLength: 6
-}).getObfuscatedCode());
+const minHtml = s => s.replace(/>\s+</g, "><");
+const obf = (code, strong) => Obf.obfuscate(code, strong
+  ? { compact: true, simplify: true, target: "browser", renameGlobals: false, identifierNamesGenerator: "hexadecimal",
+      stringArray: true, stringArrayEncoding: ["base64"], stringArrayThreshold: 0.9, rotateStringArray: true,
+      splitStrings: true, splitStringsChunkLength: 6 }
+  : { compact: true, target: "browser", stringArray: true, stringArrayEncoding: ["base64"] }).getObfuscatedCode();
+
+// головний інтерфейс: config.js + app.js
+fs.writeFileSync("dist/index.html", dev ? rd("index.html") : minHtml(rd("index.html")));
+fs.writeFileSync("dist/style.css", dev ? rd("style.css") : minCss(rd("style.css")));
+const js = rd("config.js") + "\n" + rd("app.js");
+fs.writeFileSync("dist/app.js", dev ? js : obf(js, true));
+// службові вікна: екран завантаження та сповіщення про повторний запуск
+fs.copyFileSync("src/logo.svg", "dist/logo.svg");
+for (const n of ["splash", "notice"]) {
+  fs.writeFileSync(`dist/${n}.html`, rd(`${n}.html`));
+  fs.writeFileSync(`dist/${n}.css`, dev ? rd(`${n}.css`) : minCss(rd(`${n}.css`)));
+  fs.writeFileSync(`dist/${n}.js`, dev ? rd(`${n}.js`) : obf(rd(`${n}.js`), false));
+}
 console.log(dev ? "frontend: dev build" : "frontend: obfuscated production build");
