@@ -1,19 +1,19 @@
 <!DOCTYPE html>
-<html lang="uk"><head><meta charset="utf-8"><title>Olymp Helper</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="style.css"></head>
+<html lang="uk"><head><meta charset="utf-8"><title>Olymp Helper</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="style.css"><script src="guard.js"></script></head>
 <body class="pre">
 <div class="win" id="win">
  <div class="titlebar" id="titlebar" data-tauri-drag-region>
-  <div class="tt" data-tauri-drag-region><span class="mark sm">O</span><span>Olymp Helper</span></div>
+  <div class="tt" data-tauri-drag-region><span class="slot sm"><img data-img="side" alt=""></span><span>Olymp Helper</span></div>
   <div class="wc"><button id="wMin" aria-label="Згорнути">&#8212;</button><button id="wMax" aria-label="Розгорнути">&#9633;</button><button id="wClose" class="x" aria-label="Закрити">&#10005;</button></div>
  </div>
 
  <div class="app">
   <nav>
-   <div class="brand"><span class="mark">O</span><div><b>Olymp Helper</b><small>База законів</small></div></div>
+   <div class="brand"><span class="slot lg"><img data-img="side" alt=""></span><div class="brand-t"><b>Olymp Helper</b><small>Державний помічник</small></div></div>
    <div class="menu">
     <button data-t="hub" class="on">Новини</button>
-    <button data-t="laws">База законів</button>
-    <button data-t="db">База даних</button>
+    <button data-t="laws">⚖️ Калькулятор покарань</button>
+    <button data-t="db">📚 Кодекси та Закони</button>
     <button data-t="faq">Довідник</button>
     <button data-t="notes">Нотатки</button>
     <button data-t="set">Налаштування</button>
@@ -27,22 +27,28 @@
   </nav>
 
   <main>
-   <div class="ovbar" data-tauri-drag-region><b>Olymp Оверлей</b><div class="ovtabs"><button data-t="laws">Закони</button><button data-t="faq">Довідник</button><button data-t="notes">Нотатки</button></div><button id="ovClose">Сховати (<span id="hk1">F5</span>)</button></div>
+   <div class="ovbar" data-tauri-drag-region><b>Olymp Оверлей</b><div class="ovtabs"><button data-t="laws">Калькулятор</button><button data-t="faq">Довідник</button><button data-t="notes">Нотатки</button></div><button id="ovClose">Сховати (<span id="hk1">F5</span>)</button></div>
 
    <div class="notice hide" id="updbar"><span id="updTxt"></span><progress id="prog" max="100" value="0" hidden></progress><button class="pri" id="updBtn">Оновити</button></div>
 
    <section id="hub" class="tab only-launcher">
-    <h1>Новини</h1><p class="sub">Останні оновлення законів, фракцій і сервера.</p>
-    <div id="news"><div class="empty">Новини ще не опубліковано. Адміністрація додає їх у news.json.</div></div>
+    <div class="hero card">
+     <span class="slot xl"><img data-img="news" alt=""></span>
+     <div class="hero-t"><h1>Новини</h1><p class="sub">Останні оновлення законів, фракцій і сервера.</p></div>
+     <div class="res" id="links">
+      <button class="res-b" data-res="telegram" data-u="" title="Telegram" aria-label="Telegram"><span class="slot md"><img data-img="telegram" alt=""></span></button>
+      <button class="res-b" data-res="forum" data-u="" title="Форум" aria-label="Форум"><span class="slot md"><img data-img="forum" alt=""></span></button>
+      <button class="res-b" data-res="site" data-u="" title="Сайт проєкту" aria-label="Сайт проєкту"><span class="slot md"><img data-img="site" alt=""></span></button>
+      <button class="res-b" data-res="sheets" data-u="#" title="Таблиці фракції" aria-label="Таблиці фракції"><span class="slot md"><img data-img="sheets" alt=""></span></button>
+     </div>
+    </div>
+    <div class="ngrid" id="news"><div class="empty">Новини ще не опубліковано. Адміністрація додає їх у news.json.</div></div>
     <div class="row gap0"><button id="newsMore" hidden>Старіші оновлення</button></div>
-    <h2 class="gap">Ресурси</h2>
-    <div class="row" id="links"><button data-u="">Discord</button><button data-u="">Форум</button><button data-u="">Сайт проєкту</button><button data-u="">Таблиці фракції</button></div>
     <div class="banner" id="banner" data-u="">Місце під банер або інформацію про RP-проєкт</div>
-    <div class="row gap"><button class="pri" id="goLaws">Відкрити базу законів</button><button id="goSet">Налаштування</button></div>
    </section>
 
    <section id="laws" class="tab hide">
-    <h1 class="only-launcher">База законів</h1>
+    <h1 class="only-launcher">⚖️ Калькулятор покарань</h1>
     <div class="toolbar">
      <input type="search" id="q" placeholder="Пошук за номером, назвою, описом або тегом (Ctrl + K)">
      <button id="sync">↻ Оновити базу</button>
@@ -66,7 +72,7 @@
    </section>
 
    <section id="db" class="tab hide only-launcher">
-    <h1>Закони / База даних</h1><p class="sub">Повний текст кодексів для спокійного читання. Для швидкого пошуку під час гри користуйтеся оверлеєм.</p>
+    <h1>📚 Кодекси та Закони</h1><p class="sub">Повний текст нормативно-правових актів без прив’язки до штрафів і термінів. Дані завантажуються з файлу codes.json.</p>
     <div class="reader">
      <div class="rlist" id="rlist"></div>
      <div><input type="search" id="rq" placeholder="Пошук у цьому кодексі"><div id="rbody"></div></div>
@@ -107,6 +113,7 @@
      <div class="field"><label>Власні теми <span class="note" id="themeCnt"></span></label><div class="ctl row"><span class="themes" id="cthemes"></span><button id="newTheme">Створити тему</button></div></div>
      <div class="field"><label for="fz">Розмір шрифту: <span id="fzv">100</span>%</label><div class="ctl"><input type="range" id="fz" min="80" max="150" value="100"></div></div>
     </div>
+    <div class="card group"><h2>Логотипи та іконки</h2><p class="note" style="margin-bottom:.4em">Будь-який файл (SVG або PNG) автоматично вписується в зафіксовану рамку. Макет не зміщується.</p><div id="imgset"></div></div>
     <div class="card group"><h2>Оновлення</h2>
      <div class="field"><label for="autoupd">Автооновлення</label><div class="ctl"><label class="chk"><input type="checkbox" id="autoupd"> Встановлювати оновлення автоматично під час запуску</label></div></div>
      <div class="field"><label>Поточна версія</label><div class="ctl row"><b id="setv">—</b><button id="chk">Перевірити оновлення</button><span class="hint" id="updMsg"></span></div></div>
@@ -121,6 +128,8 @@
   <button class="bug" data-tg data-u="">Знайшли баг? / Підтримка</button>
  </footer>
 </div>
+
+<div class="rz" data-d="North"></div><div class="rz" data-d="South"></div><div class="rz" data-d="West"></div><div class="rz" data-d="East"></div><div class="rz" data-d="NorthWest"></div><div class="rz" data-d="NorthEast"></div><div class="rz" data-d="SouthWest"></div><div class="rz" data-d="SouthEast"></div>
 
 <div class="modal hide" id="modal" role="dialog" aria-modal="true" aria-labelledby="mt"><div class="card">
  <h2 id="mt">Як запустити базу законів?</h2>
@@ -147,6 +156,7 @@
  <div class="row" style="margin-top:.8em"><button class="pri" id="tsave">Зберегти</button><button id="tcancel">Скасувати</button></div>
 </div></div>
 
+<input type="file" id="imgfile" accept="image/*" hidden>
 <div class="toast" id="toast"></div>
 <script src="app.js" defer></script>
 </body></html>

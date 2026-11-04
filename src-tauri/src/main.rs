@@ -7,20 +7,17 @@ use std::{thread, time::Duration};
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, LogicalSize, Manager, State, WebviewWindow, WindowEvent, Wry};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow, WindowEvent, Wry};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt as _};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_updater::UpdaterExt;
 
-const MAIN_W: f64 = 1060.0;
-const MAIN_H: f64 = 680.0;
-
 struct Game { exe: Mutex<String>, running: AtomicBool }
 struct Mode(Mutex<String>);
 struct Hotkey(Mutex<String>);
-struct Flags { overlay_active: AtomicBool, auto_overlay: AtomicBool, close_tray: AtomicBool }
+struct Flags { overlay_active: AtomicBool, auto_overlay: AtomicBool, close_tray: AtomicBool, boot_ready: AtomicBool }
 struct TrayToggle(MenuItem<Wry>);
 struct VaultState(vault::Vault);
 
@@ -121,6 +118,16 @@ fn finish_boot(app: &AppHandle) {
     }
 }
 
+// Інтерфейс завершив завантаження: вікно splash показує кнопку «Розпочати».
+#[tauri::command]
+fn boot_ready(app: AppHandle) {
+    app.state::<Flags>().boot_ready.store(true, Ordering::Relaxed);
+    let _ = app.emit("boot-ready", ());
+}
+
+#[tauri::command]
+fn boot_state(app: AppHandle) -> bool { app.state::<Flags>().boot_ready.load(Ordering::Relaxed) }
+
 #[tauri::command]
 fn finish_boot_cmd(app: AppHandle) { finish_boot(&app) }
 
@@ -130,13 +137,7 @@ fn win_ctl(w: WebviewWindow, action: String) -> bool {
     match action.as_str() {
         "min" => { let _ = w.minimize(); }
         "max" => {
-            if w.is_maximized().unwrap_or(false) {
-                let _ = w.unmaximize();
-                let _ = w.set_resizable(false);
-            } else {
-                let _ = w.set_resizable(true);
-                let _ = w.maximize();
-            }
+            if w.is_maximized().unwrap_or(false) { let _ = w.unmaximize(); } else { let _ = w.maximize(); }
         }
         "close" => { let _ = w.close(); }
         _ => {}
@@ -149,7 +150,6 @@ fn set_frame(app: AppHandle, custom: bool) {
     if let Some(w) = app.get_webview_window("main") {
         if w.is_maximized().unwrap_or(false) { return; }
         let _ = w.set_decorations(!custom);
-        let _ = w.set_size(LogicalSize::new(MAIN_W, MAIN_H));
     }
 }
 
@@ -199,7 +199,7 @@ fn set_hotkey(app: AppHandle, shortcut: String) -> Result<(), String> {
 
 // ---------- гра ----------
 #[tauri::command]
-fn set_game_exe(name: String, state: State<Game>) { *state.exe.lock().unwrap() = name; }
+fn set_game_exe(name: String, state: State<Game>) { *state.exe.lock().unwrap() = name.chars().take(1024).collect(); }
 
 #[tauri::command]
 fn game_state(app: AppHandle) -> serde_json::Value {
@@ -248,7 +248,7 @@ fn open_url(app: AppHandle, url: String) -> Result<(), String> {
 
 // ---------- оновлення ----------
 fn updater(app: &AppHandle) -> Result<tauri_plugin_updater::Updater, String> {
-    app.updater_builder().timeout(Duration::from_secs(8)).build().map_err(|e| e.to_string())
+    app.updater_builder().timeout(Duration::from_secs(5)).build().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -290,6 +290,7 @@ fn vault_dump(app: AppHandle) -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 fn vault_set(app: AppHandle, key: String, value: String, src: String) -> Result<(), String> {
+    if key.len() > 128 || value.len() > 6_000_000 { return Err("недопустимий розмір даних".into()); }
     vault(&app)?.0.set(&key, value.clone()).map_err(|e| e.to_string())?;
     let _ = app.emit("vault-changed", serde_json::json!({ "key": key, "value": value, "src": src }));
     Ok(())
@@ -302,14 +303,26 @@ fn vault_del(app: AppHandle, key: String, src: String) -> Result<(), String> {
     Ok(())
 }
 
+// Навігація вікон лише всередині застосунку: ніяких переходів на зовнішні сайти чи файли.
+fn guard_plugin() -> tauri::plugin::TauriPlugin<Wry> {
+    tauri::plugin::Builder::<Wry>::new("guard")
+        .on_navigation(|_w, url| match url.scheme() {
+            "http" | "https" => { let h = url.host_str().unwrap_or(""); h.ends_with("localhost") || h == "127.0.0.1" }
+            "file" | "ftp" => false,
+            _ => true,
+        })
+        .build()
+}
+
 fn main() {
     tauri::Builder::default()
         // має реєструватися першим
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_notice(app)))
+        .plugin(guard_plugin())
         .manage(Game { exe: Mutex::new(String::new()), running: AtomicBool::new(false) })
         .manage(Mode(Mutex::new("overlay".to_string())))
         .manage(Hotkey(Mutex::new("F5".to_string())))
-        .manage(Flags { overlay_active: AtomicBool::new(false), auto_overlay: AtomicBool::new(false), close_tray: AtomicBool::new(true) })
+        .manage(Flags { overlay_active: AtomicBool::new(false), auto_overlay: AtomicBool::new(false), close_tray: AtomicBool::new(true), boot_ready: AtomicBool::new(false) })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -326,7 +339,7 @@ fn main() {
             if let Some(w) = app.get_webview_window("main") { let _ = w.hide(); }
             tauri::WebviewWindowBuilder::new(app, "splash", tauri::WebviewUrl::App("splash.html".into()))
                 .title("Olymp Helper")
-                .inner_size(480.0, 300.0)
+                .inner_size(480.0, 330.0)
                 .center()
                 .decorations(false)
                 .transparent(true)
@@ -335,9 +348,13 @@ fn main() {
                 .skip_taskbar(true)
                 .shadow(false)
                 .build()?;
-            // запобіжник: якщо інтерфейс не завершив запуск за 30 с, усе одно показуємо головне вікно
+            // запобіжник на випадок збою інтерфейсу
             let hb = app.handle().clone();
-            thread::spawn(move || { thread::sleep(Duration::from_secs(30)); finish_boot(&hb); });
+            thread::spawn(move || {
+                thread::sleep(Duration::from_secs(30));
+                // якщо інтерфейс так і не повідомив про готовність, не лишаємо користувача на екрані завантаження
+                if !hb.state::<Flags>().boot_ready.load(Ordering::Relaxed) { finish_boot(&hb); }
+            });
 
             // --- зашифроване сховище (секрет задається під час збірки, ключ прив'язаний до ПК) ---
             let dir = app.path().app_data_dir()?;
@@ -416,7 +433,7 @@ fn main() {
             toggle_overlay, show_overlay, set_overlay_mode, set_auto_overlay, set_close_mode,
             set_game_exe, game_state, set_hotkey, set_autostart, pick_exe, open_url,
             app_version, check_update, install_update, vault_dump, vault_set, vault_del,
-            finish_boot_cmd, notice_ok, win_ctl, set_frame
+            finish_boot_cmd, boot_ready, boot_state, notice_ok, win_ctl, set_frame
         ])
         .run(tauri::generate_context!())
         .expect("помилка запуску Olymp Helper");

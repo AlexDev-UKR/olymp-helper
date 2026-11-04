@@ -161,3 +161,54 @@ body.ov .notes{grid-template-columns:1fr}body.ov #ntext{height:12em;min-height:8
 body.ov .card{padding:.8em .9em}body.ov .tot{margin:.6em 0 .4em}
 body.ov .foot{font-size:.76em;gap:.6em;padding:.3em .6em}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ===== v1.2.4: фіксовані слоти зображень ===== */
+.slot{--s:2.6em;position:relative;flex:none;width:var(--s);height:var(--s);display:grid;place-items:center;overflow:hidden;border-radius:var(--r2);background:rgba(255,255,255,.03);border:1px solid var(--b1)}
+.slot img{width:100%;height:100%;object-fit:contain;display:block;padding:.16em}
+.slot.sm{--s:1.55em;border-radius:5px;border:0;background:none}.slot.sm img{padding:0}
+.slot.md{--s:2.4em}.slot.lg{--s:2.8em}.slot.xl{--s:4.4em}
+/* шапка бічної панелі: незмінна висота, довга назва не зсуває верстку */
+.brand{height:4.1em;flex:none;gap:.7em;overflow:hidden}
+.brand-t{min-width:0;display:grid;line-height:1.25}
+.brand-t b,.brand-t small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* новини */
+.hero{display:grid;grid-template-columns:auto 1fr auto;gap:1.1em;align-items:center;padding:1em 1.2em;margin-bottom:1em}
+.hero h1{margin:0}.hero .sub{margin:.1em 0 0}
+.res{display:flex;gap:.55em}
+.res-b{padding:.35em;border-radius:var(--r2);background:var(--l3)}
+.res-b:hover{border-color:color-mix(in srgb,var(--ac) 60%,transparent);background:var(--l3)}
+.res-b .slot{border:0;background:none}
+.ngrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8em}
+.ngrid .empty{grid-column:1/-1}
+.ncard{position:relative;display:grid;gap:.25em;align-content:start;padding:1em 1.1em 1em 1.35em;background:var(--l2);border:1px solid var(--b1);border-radius:var(--r);box-shadow:inset 0 1px 0 rgba(255,255,255,.03);transition:border-color .2s var(--ease),background-color .2s}
+.ncard::before{content:"";position:absolute;left:0;top:1em;bottom:1em;width:3px;border-radius:0 3px 3px 0;background:var(--ac)}
+.ncard:hover{border-color:var(--b2);background:var(--l3)}
+.ncard time{color:var(--mut);font-size:.82em}
+.ncard h3{font-size:1.05em}.ncard p{color:var(--mut);font-size:.92em;line-height:1.55}
+.ntag{justify-self:start;font-size:.7em;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 45%,transparent);border-radius:4px;padding:.05em .5em}
+.item .ntag{margin-left:.5em}
+/* налаштування зображень */
+.field .slot.md{--s:2.6em}
+/* кодекси: повний текст */
+.dt{margin:.45em 0 .5em;line-height:1.65;white-space:pre-wrap}
+.dn{color:var(--mut);font-size:.88em;font-style:italic}
+.dtags .tag{margin-top:.2em}
+.doc .dh{font-size:1.02em}
+/* зміна розміру власного вікна */
+.rz{position:fixed;z-index:80}
+.rz[data-d=North]{top:0;left:12px;right:12px;height:5px;cursor:ns-resize}
+.rz[data-d=South]{bottom:0;left:12px;right:12px;height:5px;cursor:ns-resize}
+.rz[data-d=West]{left:0;top:12px;bottom:12px;width:5px;cursor:ew-resize}
+.rz[data-d=East]{right:0;top:12px;bottom:12px;width:5px;cursor:ew-resize}
+.rz[data-d=NorthWest]{top:0;left:0;width:12px;height:12px;cursor:nwse-resize}
+.rz[data-d=SouthEast]{bottom:0;right:0;width:12px;height:12px;cursor:nwse-resize}
+.rz[data-d=NorthEast]{top:0;right:0;width:12px;height:12px;cursor:nesw-resize}
+.rz[data-d=SouthWest]{bottom:0;left:0;width:12px;height:12px;cursor:nesw-resize}
+body.sysframe .rz,body.maxd .rz,body.ov .rz,body.pre .rz,body.web .rz{display:none}
+@media(max-width:900px){.hero{grid-template-columns:auto 1fr}.res{grid-column:1/-1}.ngrid{grid-template-columns:1fr}}
+
+/* захист: без виділення службових елементів, без перетягування зображень, без друку */
+body{-webkit-user-select:none;user-select:none}
+input,textarea,.ans,.dt,.doc p,.ncard p,.item p{-webkit-user-select:text;user-select:text}
+img{-webkit-user-drag:none;user-drag:none}
+@media print{body{display:none!important}}

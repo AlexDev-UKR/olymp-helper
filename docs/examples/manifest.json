@@ -1,0 +1,22 @@
+{
+  "theme": {
+    "accent": "#d4ab4a"
+  },
+  "miranda": "Ви маєте право зберігати мовчання. Усе, що ви скажете, може бути використано проти вас у суді.\nВи маєте право на адвоката. Якщо ви не можете його собі дозволити, його буде надано державою.\nЧи зрозумілі вам ваші права?",
+  "min_launcher": "1.0.0",
+  "laws_url": "https://raw.githubusercontent.com/AlexDev-UKR/olymp-laws/refs/heads/main/laws.json",
+  "news_url": "https://raw.githubusercontent.com/AlexDev-UKR/olymp-laws/refs/heads/main/news.json",
+  "links": {
+    "telegram": "https://t.me/olymphelper_official",
+    "forum": "https://forum.example.com",
+    "site": "https://example.com",
+    "sheets": "#"
+  },
+  "banner": {
+    "text": "Назва проєкту — приєднуйтесь до сервера",
+    "url": "https://example.com"
+  },
+  "faq_url": "https://raw.githubusercontent.com/your-org/gov-laws/main/faq.json",
+  "codes_url": "https://raw.githubusercontent.com/your-org/gov-laws/main/codes.json",
+  "assets": {}
+}

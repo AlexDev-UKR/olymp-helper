@@ -19,7 +19,9 @@ fs.writeFileSync("dist/style.css", dev ? rd("style.css") : minCss(rd("style.css"
 const js = rd("config.js") + "\n" + rd("app.js");
 fs.writeFileSync("dist/app.js", dev ? js : obf(js, true));
 // службові вікна: екран завантаження та сповіщення про повторний запуск
+fs.writeFileSync("dist/guard.js", dev ? rd("guard.js") : obf(rd("guard.js"), false));
 fs.copyFileSync("src/logo.svg", "dist/logo.svg");
+fs.cpSync("src/icons", "dist/icons", { recursive: true });
 for (const n of ["splash", "notice"]) {
   fs.writeFileSync(`dist/${n}.html`, rd(`${n}.html`));
   fs.writeFileSync(`dist/${n}.css`, dev ? rd(`${n}.css`) : minCss(rd(`${n}.css`)));

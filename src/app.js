@@ -3,6 +3,7 @@ const TAURI=!!window.__TAURI__,OVERLAY=new URLSearchParams(location.search).get(
 const invoke=(c,a)=>window.__TAURI__.core.invoke(c,a);
 const acc=c=>c.replace(/ \+ /g,"+").replace("Arrow","");
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let RESTORED=false;
 let LIM=60,MIR="Ви маєте право зберігати мовчання. Усе, що ви скажете, може бути використано проти вас у суді.\nВи маєте право на адвоката. Якщо ви не можете його собі дозволити, його буде надано державою.\nЧи зрозумілі вам ваші права?";
 const FALLBACK={version:"1.1.0",limits:{max_jail_minutes:60},updated_at:"2026-11-02",categories:[
 {id:"kk",abbr:"КК",title:"Кримінальний Кодекс (КК)",color:"red",articles:[
@@ -21,7 +22,7 @@ const FALLBACK={version:"1.1.0",limits:{max_jail_minutes:60},updated_at:"2026-11
 // ---- локальне сховище ----
 // У застосунку дані зберігає Rust у зашифрованих файлах (AES-256-GCM) в AppData; тут лише копія в пам'яті.
 // Поза застосунком (перегляд у браузері) використовується звичайний localStorage.
-const MEM={};
+const MEM=Object.create(null);
 const store={
   get(k){if(!TAURI){try{return localStorage.getItem(k)}catch(e){return null}}return k in MEM?MEM[k]:null},
   set(k,v){if(!TAURI){try{localStorage.setItem(k,v)}catch(e){}return}MEM[k]=v;invoke("vault_set",{key:k,value:v,src:OVERLAY?"overlay":"main"}).catch(()=>{})},
@@ -42,12 +43,14 @@ let MAN=null;
 const validLaws=d=>!!d&&Array.isArray(d.categories);
 const validFaq=d=>!!d&&Array.isArray(d.items);
 const validNews=validFaq;
+const validCodes=d=>!!d&&Array.isArray(d.codes);
+const CODES_URL=typeof DEFAULT_CODES_URL!=="undefined"?DEFAULT_CODES_URL:"";
 async function getManifest(){
   try{const r=await fetch(MANIFEST_URL,{cache:"no-store"});if(r.ok){const m=await r.json();if(m&&typeof m==="object"){store.set("manifest.cache",JSON.stringify(m));return m}}}catch(e){}
   return parse(store.get("manifest.cache"));
 }
 async function fetchCached(url,key,valid){
-  try{const r=await fetch(url,{cache:"no-store"});if(!r.ok)throw 0;const d=await r.json();if(!valid(d))throw 0;store.set(key,JSON.stringify(d));return{d,src:"net"}}catch(e){}
+  try{if(!url)throw 0;const r=await fetch(url,{cache:"no-store"});if(!r.ok)throw 0;const d=await r.json();if(!valid(d))throw 0;store.set(key,JSON.stringify(d));return{d,src:"net"}}catch(e){}
   const d=parse(store.get(key));return valid(d)?{d,src:"cache"}:{d:null,src:"none"};
 }
 async function loadAll(manual,prog){
@@ -60,6 +63,7 @@ async function loadAll(manual,prog){
   p(80,"Завантаження довідника…");
   const F=await fetchCached((MAN&&MAN.faq_url)||DEFAULT_FAQ_URL,"faq.cache",validFaq);applyFaq(F.d);
   if(MAN&&MAN.news_url){const N=await fetchCached(MAN.news_url,"news.cache",validNews);setNews(N.d?N.d.items:[])}else setNews([]);
+  const C=await fetchCached((MAN&&MAN.codes_url)||CODES_URL,"codes.cache",validCodes);applyCodes(C.d);
   p(100,"Готово");
 }
 // Оверлей не робить власних запитів: дані надає головне вікно через спільне зашифроване сховище.
@@ -77,7 +81,7 @@ function applyDB(d){
   CATS=(d.categories||[]).map(c=>({id:c.id,title:c.title,color:c.color||"",abbr:c.abbr||abbrOf(c.title),
     groups:[...(c.articles&&c.articles.length?[{title:"",articles:c.articles}]:[]),...(c.sections||[]).map(s=>({title:s.title||"",articles:s.articles||[]}))]}));
   if(!inited&&CATS.length){opened.add(CATS[0].id);inited=true}
-  $("ver").textContent=d.version;$("upd").textContent=d.updated_at;render();renderReader();
+  $("ver").textContent=d.version;$("upd").textContent=d.updated_at;render();
 }
 const all=()=>CATS.flatMap(c=>c.groups.flatMap(g=>g.articles.map(a=>({...a,cat:c.title,code:c.abbr,sec:g.title}))));
 const picked=()=>all().filter(a=>sel.has(a.id));
@@ -203,7 +207,7 @@ function tab(t){
   if(t==="laws")setTimeout(()=>$("q").focus(),0);if(t==="faq")setTimeout(()=>$("fq").focus(),0);if(t==="notes")loadNotes();
 }
 document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>tab(b.dataset.t));
-$("goLaws").onclick=()=>tab("laws");$("goSet").onclick=()=>tab("set");
+
 function overlay(on){
   if(TAURI){invoke("toggle_overlay");return}
   document.body.classList.toggle("ov",on);if(on)tab("laws");else tab("hub");
@@ -230,7 +234,7 @@ function setHK(c){hotkey=c;$("hk1").textContent=c;$("hk2").textContent=c;store.s
 $("bind").onclick=()=>{binding=true;$("bindHint").textContent="Натисніть нову комбінацію…"};
 document.addEventListener("keydown",e=>{
   if(binding){e.preventDefault();if(["Control","Shift","Alt","Meta"].includes(e.key))return;setHK(combo(e));binding=false;$("bindHint").textContent="Збережено";return}
-  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();tab("laws");$("q").focus();$("q").select();return}
+  if((e.ctrlKey||e.metaKey)&&e.code==="KeyK"){e.preventDefault();tab("laws");$("q").focus();$("q").select();return}
   if(!TAURI&&combo(e)===hotkey){e.preventDefault();overlay(!document.body.classList.contains("ov"))}
   if(e.key==="Escape"){
     const m=document.querySelector(".modal:not(.hide)");
@@ -266,6 +270,10 @@ $("frame").onchange=()=>{store.set("gov.frame",$("frame").value);applyFrame($("f
 $("closeb").onchange=()=>{store.set("gov.close",$("closeb").value);if(TAURI)invoke("set_close_mode",{tray:$("closeb").value==="tray"})};
 const wc=a=>{if(!TAURI)return;invoke("win_ctl",{action:a}).then(m=>document.body.classList.toggle("maxd",!!m)).catch(()=>{})};
 $("wMin").onclick=()=>wc("min");$("wMax").onclick=()=>wc("max");$("wClose").onclick=()=>wc("close");
+document.querySelectorAll(".rz").forEach(el=>el.addEventListener("pointerdown",ev=>{
+  if(!TAURI||ev.button!==0)return;ev.preventDefault();
+  try{window.__TAURI__.window.getCurrentWindow().startResizeDragging(el.dataset.d)}catch(e){}
+}));
 
 // ---- теми ----
 const PRESETS=[
@@ -324,26 +332,98 @@ $("tsave").onclick=()=>{
   tm.classList.add("hide");pickTheme();
 };
 
-// ---- новини, маніфест адміністрації ----
+// ---- новини, ресурси, зображення, маніфест ----
 let NEWS=[];
 const dmy=s=>{const m=/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(String(s||"").trim());return m?new Date(+m[3],+m[2]-1,+m[1]).getTime():null};
-const newsItem=i=>`<article class="item"><time>${esc(i.date)}</time><div><h3>${esc(i.title)}</h3><p>${esc(i.text)}</p></div></article>`;
+const newsItem=i=>`<article class="item"><time>${esc(i.date)}</time><div><h3>${esc(i.title)}${i.tag?`<span class="ntag">${esc(i.tag)}</span>`:""}</h3><p>${esc(i.text)}</p></div></article>`;
+const newsCard=i=>`<article class="ncard">${i.tag?`<span class="ntag">${esc(i.tag)}</span>`:""}<time>${esc(i.date)}</time><h3>${esc(i.title)}</h3><p>${esc(i.text)}</p></article>`;
 function setNews(items){
   NEWS=[...(items||[])];
   if(NEWS.length&&NEWS.every(i=>dmy(i.date)!==null))NEWS.sort((a,b)=>dmy(b.date)-dmy(a.date));
-  $("news").innerHTML=NEWS.length?NEWS.slice(0,2).map(newsItem).join(""):'<div class="empty">Новини ще не опубліковано. Адміністрація додає їх у news.json.</div>';
+  $("news").innerHTML=NEWS.length?NEWS.slice(0,2).map(newsCard).join(""):'<div class="empty">Новини ще не опубліковано. Адміністрація додає їх у news.json.</div>';
   $("newsMore").hidden=NEWS.length<=2;
   $("newsAll").innerHTML=NEWS.map(newsItem).join("");
 }
 $("newsMore").onclick=()=>$("newsModal").classList.remove("hide");
 $("newsClose").onclick=()=>$("newsModal").classList.add("hide");
 $("newsModal").addEventListener("click",e=>{if(e.target.id==="newsModal")$("newsModal").classList.add("hide")});
+
+// ресурси: чотири іконки в зафіксованих слотах; посилання задає manifest.json (links)
+const RES=["telegram","forum","site","sheets"];
+const ALIAS={telegram:["telegram","телеграм"],forum:["forum","форум"],site:["site","сайт"],sheets:["sheets","таблиц"]};
+function applyLinks(links){
+  const L=links||{};
+  RES.forEach(k=>{
+    const key=Object.keys(L).find(n=>ALIAS[k].some(a=>n.toLowerCase().startsWith(a)));
+    const b=document.querySelector(`[data-res="${k}"]`);if(!b)return;
+    b.dataset.u=key?String(L[key]):(k==="telegram"?TG_URL:k==="sheets"?"#":"");
+  });
+}
+
+// зображення: власний файл гравця > файл із manifest.json (assets) > стандартне
+const IMGS=[
+  {k:"side",n:"Логотип у бічній панелі",d:"logo.svg"},
+  {k:"news",n:"Логотип проєкту в новинах",d:"logo.svg"},
+  {k:"telegram",n:"Іконка Telegram",d:"icons/telegram.svg"},
+  {k:"forum",n:"Іконка форуму",d:"icons/forum.svg"},
+  {k:"site",n:"Іконка сайту проєкту",d:"icons/site.svg"},
+  {k:"sheets",n:"Іконка таблиць фракції",d:"icons/sheets.svg"}];
+const assetCache=()=>parse(store.get("assets.cache"))||{};
+function imgSrc(k){
+  const o=store.get("gov.img."+k);if(o)return o;
+  const u=MAN&&MAN.assets&&MAN.assets[k];if(u){const a=assetCache()[u];if(a)return a}
+  return IMGS.find(i=>i.k===k).d;
+}
+function setImgs(){document.querySelectorAll("img[data-img]").forEach(im=>{const s=imgSrc(im.dataset.img);if(im.getAttribute("src")!==s)im.setAttribute("src",s)})}
+async function loadAssets(m){
+  const A=m&&m.assets;if(!A||typeof A!=="object")return;const cache=assetCache();let ch=false;
+  for(const{k}of IMGS){
+    const u=A[k];if(typeof u!=="string"||!u.startsWith("https://")||cache[u])continue;
+    try{const r=await fetch(u);if(!r.ok)continue;const b=await r.blob();if(b.size>400000)continue;
+      cache[u]=await new Promise((ok,no)=>{const f=new FileReader();f.onload=()=>ok(f.result);f.onerror=no;f.readAsDataURL(b)});ch=true}catch(e){}
+  }
+  if(ch)store.set("assets.cache",JSON.stringify(cache));setImgs();
+}
+function prepImage(f){
+  return new Promise((ok,no)=>{
+    if(!/^image\//.test(f.type))return no(new Error("Оберіть файл зображення (SVG або PNG)"));
+    if(f.size>3e6)return no(new Error("Файл завеликий (до 3 МБ)"));
+    const fr=new FileReader();fr.onerror=()=>no(new Error("Не вдалося прочитати файл"));
+    fr.onload=()=>{
+      if(f.type==="image/svg+xml"){fr.result.length>400000?no(new Error("SVG завеликий")):ok(fr.result);return}
+      const im=new Image();im.onerror=()=>no(new Error("Не вдалося відкрити зображення"));
+      im.onload=()=>{ // зменшуємо до 256 px, щоб не роздувати зашифроване сховище
+        const s=Math.min(1,256/Math.max(im.width,im.height)),c=document.createElement("canvas");
+        c.width=Math.max(1,Math.round(im.width*s));c.height=Math.max(1,Math.round(im.height*s));
+        c.getContext("2d").drawImage(im,0,0,c.width,c.height);ok(c.toDataURL("image/png"));
+      };
+      im.src=fr.result;
+    };
+    fr.readAsDataURL(f);
+  });
+}
+let imgKey=null;
+function renderImgSet(){
+  $("imgset").innerHTML=IMGS.map(i=>`<div class="field"><label>${esc(i.n)}</label><div class="ctl row"><span class="slot md"><img data-img="${i.k}" alt=""></span><button data-up="${i.k}">Завантажити…</button><button data-rs="${i.k}">Скинути</button></div></div>`).join("");
+  setImgs();
+}
+$("imgset").addEventListener("click",e=>{
+  const u=e.target.closest("[data-up]"),r=e.target.closest("[data-rs]");
+  if(u){imgKey=u.dataset.up;$("imgfile").value="";$("imgfile").click()}
+  if(r){store.del("gov.img."+r.dataset.rs);setImgs();toast("Повернуто стандартне зображення")}
+});
+$("imgfile").addEventListener("change",async()=>{
+  const f=$("imgfile").files[0];if(!f||!imgKey)return;
+  try{store.set("gov.img."+imgKey,await prepImage(f));setImgs();toast("Зображення замінено")}
+  catch(e){toast(e.message||"Не вдалося завантажити файл")}
+});
+
 function applyManifest(m){
   if(typeof m.miranda==="string"&&m.miranda.trim())MIR=m.miranda;
   if(m.min_launcher){MINV=String(m.min_launcher);verCheck()}
-  if(m.links)$("links").innerHTML=Object.entries(m.links).map(([k,u])=>`<button data-u="${esc(u)}">${esc(k)}</button>`).join("");
+  applyLinks(m.links);
   if(m.banner){$("banner").textContent=m.banner.text||"";$("banner").dataset.u=m.banner.url||""}
-  pickTheme();
+  pickTheme();setImgs();loadAssets(m);
 }
 document.addEventListener("click",e=>{
   const b=e.target.closest("[data-u]");if(!b)return;const u=b.dataset.u;
@@ -351,16 +431,22 @@ document.addEventListener("click",e=>{
   TAURI?invoke("open_url",{url:u}):window.open(u,"_blank","noopener");
 });
 
-// ---- читання кодексів (вкладка «База даних») ----
-let rcur=null;
-const docHtml=a=>`<article class="doc"><div class="dh"><b>Ст. ${esc(a.number)}</b>${esc(a.title)}</div><p>${esc(a.description)}</p><div class="dm">Штраф ${fmt(a.fine)} · КПЗ ${a.jail_minutes?a.jail_minutes+" хв":"—"} · Розшук ${"★".repeat(a.wanted_level)||"—"} · Застава ${a.jail_minutes>0?(a.bail?fmt(a.bail):"немає"):"—"}</div></article>`;
+// ---- кодекси та закони: окремий файл codes.json, лише повний текст ----
+let CODES=[],rcur=null;
+function applyCodes(d){
+  CODES=(d&&Array.isArray(d.codes)?d.codes:[]).map(c=>({id:String(c.id),title:String(c.title||""),color:c.color||"",abbr:c.abbr||abbrOf(String(c.title||"")),updated:c.updated||"",
+    groups:[...(c.articles&&c.articles.length?[{title:"",articles:c.articles}]:[]),...(c.sections||[]).map(s=>({title:s.title||"",articles:s.articles||[]}))]}));
+  renderReader();
+}
+const docHtml=a=>`<article class="doc"><div class="dh"><b>Ст. ${esc(a.number)}</b>${esc(a.title)}</div><div class="dt">${esc(a.text??a.description??"")}</div>${a.note?`<div class="dn">${esc(a.note)}</div>`:""}${(a.tags||[]).length?`<div class="dtags">${a.tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`:""}</article>`;
 function renderReader(){
-  if(!CATS.length){$("rlist").innerHTML="";$("rbody").innerHTML='<div class="empty">База порожня.</div>';return}
-  if(!CATS.find(c=>c.id===rcur))rcur=CATS[0].id;
-  $("rlist").innerHTML=CATS.map(c=>`<button class="rl ${c.id===rcur?"on":""}" data-c="${esc(c.id)}"><span class="badge ${esc(c.color)}">${esc(c.abbr)}</span><span class="ct">${esc(c.title.replace(/\s*\([^)]{1,8}\)\s*$/,""))}</span><span class="cnt">${c.groups.reduce((s,g)=>s+g.articles.length,0)}</span></button>`).join("");
-  const c=CATS.find(x=>x.id===rcur),q=norm($("rq").value.trim()).split(/\s+/).filter(Boolean);let h="";
+  if(!CODES.length){$("rlist").innerHTML="";$("rbody").innerHTML='<div class="empty">Кодекси ще не опубліковано. Адміністрація додає їх у файл codes.json.</div>';return}
+  if(!CODES.find(c=>c.id===rcur))rcur=CODES[0].id;
+  $("rlist").innerHTML=CODES.map(c=>`<button class="rl ${c.id===rcur?"on":""}" data-c="${esc(c.id)}"><span class="badge ${esc(c.color)}">${esc(c.abbr)}</span><span class="ct">${esc(c.title.replace(/\s*\([^)]{1,8}\)\s*$/,""))}</span><span class="cnt">${c.groups.reduce((s,g)=>s+g.articles.length,0)}</span></button>`).join("");
+  const c=CODES.find(x=>x.id===rcur),q=norm($("rq").value.trim()).split(/\s+/).filter(Boolean);
+  let h=c.updated?`<p class="note" style="margin-bottom:.4em">Редакція від ${esc(c.updated)}</p>`:"";
   for(const g of c.groups){
-    const arts=g.articles.filter(a=>{const t=norm([a.number,a.title,a.description,...(a.tags||[])].join(" "));return q.every(w=>t.includes(w))});
+    const arts=g.articles.filter(a=>{const t=norm([a.number,a.title,a.text,a.description,a.note,...(a.tags||[])].join(" "));return q.every(w=>t.includes(w))});
     if(!arts.length)continue;if(g.title)h+=`<div class="sec">${esc(g.title)}</div>`;h+=arts.map(docHtml).join("");
   }
   $("rbody").innerHTML=h||'<div class="empty">Нічого не знайдено.</div>';
@@ -394,6 +480,7 @@ async function bootTauri(){
   ev.listen("game-status",e=>{G.running=!!e.payload;renderGs()});
   ev.listen("overlay-active",e=>{G.ov=!!e.payload;renderGs()});
   invoke("game_state").then(s=>{G.running=!!s.running;G.ov=!!s.overlay;renderGs()});
+  ev.listen("boot-done",()=>{setTimeout(()=>document.body.classList.remove("pre"),450);if(RESTORED)toast("Пошкоджені локальні файли відновлено")});
   ev.listen("overlay-mode",e=>document.body.classList.toggle("framed",e.payload==="window"));
   ev.listen("update-progress",e=>{const{got,total}=e.payload,pc=total?got/total*100:0;$("prog").value=pc;bp(22+pc*.7)});
   let rl=0;ev.listen("vault-changed",e=>{
@@ -413,12 +500,10 @@ async function bootTauri(){
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rj)=>setTimeout(()=>rj(new Error("timeout")),ms))]);
 const bp=(v,t)=>{if(TAURI&&!OVERLAY)window.__TAURI__.event.emit("boot-progress",{v,t}).catch(()=>{})};
-const BOOT_MIN=2600,T0=Date.now();
 async function finish(){
-  const w=BOOT_MIN-(Date.now()-T0);if(w>0)await sleep(w);
-  bp(100,"Готово");await sleep(250);
-  const show=()=>document.body.classList.remove("pre");
-  if(TAURI){setTimeout(show,480);invoke("finish_boot").catch(show)}else show();
+  bp(100,"Готово");
+  if(TAURI)invoke("boot_ready").catch(()=>document.body.classList.remove("pre"));
+  else{document.body.classList.remove("pre");if(RESTORED)toast("Пошкоджені локальні файли відновлено")}
 }
 async function preload(){
   if(!TAURI)return[];
@@ -431,7 +516,7 @@ function initUi(){
   const h=store.get("gov.hk");if(h){hotkey=h;$("hk1").textContent=h;$("hk2").textContent=h}
   const o=store.get("gov.op");if(o){$("op").value=o;$("op").oninput({target:$("op")})}
   const f=store.get("gov.fz");if(f){$("fz").value=f;$("fz").oninput({target:$("fz")})}
-  loadThemes();pickTheme();
+  loadThemes();pickTheme();renderImgSet();applyLinks(null);
   G.exe=store.get("gov.exe")||"";$("exe").value=G.exe;
   $("autoov").checked=store.get("gov.autoov")==="1";syncExeUi();renderGs();
   const fr=store.get("gov.frame")||"custom";$("frame").value=fr;document.body.classList.toggle("sysframe",fr!=="custom");
@@ -447,26 +532,24 @@ $("autoupd").onchange=e=>store.set("gov.autoupd",e.target.checked?"1":"0");
 async function main(){
   if(OVERLAY)document.body.classList.remove("pre");
   bp(6,"Ініціалізація…");
-  const restored=await preload();
+  const restored=await preload();RESTORED=restored.length>0;
   initUi();
   if(TAURI)await bootTauri();
   if(OVERLAY){loadNotes();loadFromStore();return}
   loadNotes();
-  bp(22,"Ініціалізація…");await sleep(450);
-  if(restored.length){bp(26,"Виявлено пошкоджені локальні файли. Відновлюємо…");await sleep(1000)}
+  if(RESTORED)bp(20,"Виявлено пошкоджені локальні файли. Відновлюємо…");
   // 1. Оновлення застосунку (підписане): завантажується з прогресом, після встановлення застосунок перезапускається
   if(TAURI&&store.get("gov.autoupd")!=="0"&&navigator.onLine){
-    bp(34,"Перевірка оновлень…");
-    const u=(await Promise.all([withTimeout(invoke("check_update"),9000).catch(()=>null),sleep(700)]))[0];
+    bp(30,"Перевірка оновлень…");
+    const u=await withTimeout(invoke("check_update"),6000).catch(()=>null);
     if(u){bp(40,`Завантаження версії ${u.version}…`);
       try{await invoke("install_update");return}
-      catch(e){bp(45,"Не вдалося встановити оновлення. Запускаємо поточну версію…");await sleep(900)}}
-  }else{bp(34,"Перевірка оновлень…");await sleep(500)}
-  // 2. Модулі й дані: маніфест, закони, довідник
+      catch(e){bp(45,"Не вдалося встановити оновлення. Запускаємо поточну версію…")}}
+  }
+  // 2. Модулі й дані: маніфест, закони, довідник, кодекси
   bp(52,"Завантаження модулів…");
   await loadAll(false,(v,t)=>bp(55+v*.4,t));
   await finish();
-  if(restored.length)toast("Пошкоджені локальні файли відновлено");
   if(TAURI&&store.get("gov.autoupd")==="0")checkUpdate(false);
 }
 main();
