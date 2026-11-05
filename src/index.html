@@ -3,20 +3,30 @@
 <body class="pre">
 <div class="win" id="win">
  <div class="titlebar" id="titlebar" data-tauri-drag-region>
-  <div class="tt" data-tauri-drag-region><span class="slot sm"><img data-img="side" alt=""></span><span>Olymp Helper</span></div>
+  <div class="tt" data-tauri-drag-region><span class="slot sm"><img src="logo.svg" alt=""></span><span>Olymp Helper</span></div>
   <div class="wc"><button id="wMin" aria-label="Згорнути">&#8212;</button><button id="wMax" aria-label="Розгорнути">&#9633;</button><button id="wClose" class="x" aria-label="Закрити">&#10005;</button></div>
  </div>
 
  <div class="app">
   <nav>
-   <div class="brand"><span class="slot lg"><img data-img="side" alt=""></span><div class="brand-t"><b>Olymp Helper</b><small>Державний помічник</small></div></div>
+   <div class="brand"><span class="slot lg"><img src="logo.svg" alt=""></span><div class="brand-t"><b>Olymp Helper</b><small>Державний помічник</small></div></div>
+   <div class="nav-sec">Головне</div>
    <div class="menu">
-    <button data-t="hub" class="on">Новини</button>
-    <button data-t="laws">⚖️ Калькулятор покарань</button>
-    <button data-t="db">📚 Кодекси та Закони</button>
-    <button data-t="faq">Довідник</button>
-    <button data-t="notes">Нотатки</button>
-    <button data-t="set">Налаштування</button>
+    <button class="nv on" data-t="hub"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Новини</span></button>
+   </div>
+   <div class="nav-sec">Закони</div>
+   <div class="menu">
+    <button class="nv" data-t="laws"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h2M12 12h2M8 16h2M12 16h2"/></svg><span>Калькулятор покарань</span></button>
+    <button class="nv" data-t="db"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h10"/></svg><span>Кодекси та Закони</span></button>
+    <button class="nv" data-t="faq"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.6a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.2 1-1.2 1.8M12 17h.01"/></svg><span>Довідник</span></button>
+   </div>
+   <div class="nav-sec">Інструменти</div>
+   <div class="menu">
+    <button class="nv" data-t="notes"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg><span>Нотатки</span></button>
+   </div>
+   <div class="nav-sec">Система</div>
+   <div class="menu">
+    <button class="nv" data-t="set"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></svg><span>Налаштування</span></button>
    </div>
    <button class="pri" id="runOv">Запустити оверлей</button>
    <div class="st">
@@ -27,24 +37,30 @@
   </nav>
 
   <main>
-   <div class="ovbar" data-tauri-drag-region><b>Olymp Оверлей</b><div class="ovtabs"><button data-t="laws">Калькулятор</button><button data-t="faq">Довідник</button><button data-t="notes">Нотатки</button></div><button id="ovClose">Сховати (<span id="hk1">F5</span>)</button></div>
+   <div class="ovbar" id="ovbar" data-tauri-drag-region><b>Olymp Оверлей</b><div class="ovtabs"><button data-t="laws">Калькулятор</button><button data-t="faq">Довідник</button><button data-t="notes">Нотатки</button></div><div class="ovtools"><button class="ico" id="ovClick" aria-label="Наскрізний режим"></button><button class="ico" id="ovLock" aria-label="Заблокувати позицію"></button><button id="ovClose">Сховати (<span id="hk1">F5</span>)</button></div></div>
 
    <div class="notice hide" id="updbar"><span id="updTxt"></span><progress id="prog" max="100" value="0" hidden></progress><button class="pri" id="updBtn">Оновити</button></div>
 
    <section id="hub" class="tab only-launcher">
     <div class="hero card">
-     <span class="slot xl"><img data-img="news" alt=""></span>
+     <span class="slot xl"><img src="logo.svg" alt=""></span>
      <div class="hero-t"><h1>Новини</h1><p class="sub">Останні оновлення законів, фракцій і сервера.</p></div>
      <div class="res" id="links">
-      <button class="res-b" data-res="telegram" data-u="" title="Telegram" aria-label="Telegram"><span class="slot md"><img data-img="telegram" alt=""></span></button>
-      <button class="res-b" data-res="forum" data-u="" title="Форум" aria-label="Форум"><span class="slot md"><img data-img="forum" alt=""></span></button>
-      <button class="res-b" data-res="site" data-u="" title="Сайт проєкту" aria-label="Сайт проєкту"><span class="slot md"><img data-img="site" alt=""></span></button>
-      <button class="res-b" data-res="sheets" data-u="#" title="Таблиці фракції" aria-label="Таблиці фракції"><span class="slot md"><img data-img="sheets" alt=""></span></button>
+      <button class="res-b" data-res="telegram" data-u="" title="Telegram" aria-label="Telegram"><span class="slot md"><img src="icons/telegram.svg" alt=""></span></button>
+      <button class="res-b" data-res="forum" data-u="" title="Форум" aria-label="Форум"><span class="slot md"><img src="icons/forum.svg" alt=""></span></button>
+      <button class="res-b" data-res="site" data-u="" title="Сайт проєкту" aria-label="Сайт проєкту"><span class="slot md"><img src="icons/site.svg" alt=""></span></button>
+      <button class="res-b" data-res="sheets" data-u="#" title="Таблиці фракції" aria-label="Таблиці фракції"><span class="slot md"><img src="icons/sheets.svg" alt=""></span></button>
      </div>
     </div>
     <div class="ngrid" id="news"><div class="empty">Новини ще не опубліковано. Адміністрація додає їх у news.json.</div></div>
     <div class="row gap0"><button id="newsMore" hidden>Старіші оновлення</button></div>
-    <div class="banner" id="banner" data-u="">Місце під банер або інформацію про RP-проєкт</div>
+    <div class="promo" id="promo">
+     <div class="promo-in">
+      <span class="slot xl"><img src="logo.svg" alt=""></span>
+      <div class="promo-t"><b id="pTitle">Olymp</b><span id="pText">Приєднуйтесь до сервера й починайте службу вже сьогодні</span></div>
+      <button class="pri promo-b" id="pBtn" data-u="">Підключитися</button>
+     </div>
+    </div>
    </section>
 
    <section id="laws" class="tab hide">
@@ -101,6 +117,9 @@
      <div class="field"><label for="exe">Процес гри</label><div class="ctl row"><input type="text" id="exe" placeholder="GTA5.exe"><button id="pick">Вибрати…</button></div><p class="hint" id="exeHint"></p></div>
      <div class="field"><label>Гаряча клавіша</label><div class="ctl row"><span class="hk" id="hk2">F5</span><button id="bind">Змінити</button><span class="hint" id="bindHint"></span></div></div>
      <div class="field"><label for="lm">Запуск оверлею</label><div class="ctl"><select id="lm"><option value="ask">Щоразу питати</option><option value="overlay">Завжди як оверлей</option><option value="window">Завжди як окремий застосунок</option></select></div></div>
+     <div class="field"><label for="ontop">Поверх вікон</label><div class="ctl"><label class="chk"><input type="checkbox" id="ontop"> Завжди поверх інших вікон (для режиму оверлею)</label></div></div>
+     <div class="field"><label for="smart">Розумна прозорість</label><div class="ctl"><label class="chk"><input type="checkbox" id="smart"> Робити оверлей прозорішим, коли він не в фокусі</label></div></div>
+     <div class="field"><label for="bgop">Прозорість у фоні: <span id="bgopv">55</span>%</label><div class="ctl"><input type="range" id="bgop" min="20" max="100" value="55"></div><p class="hint">Наскрізний режим (кліки проходять у гру) вмикається кнопкою в шапці оверлею, пунктом меню в треї або клавішею <b id="clickKey">Shift + F5</b>.</p></div>
      <div class="field"><label for="op">Прозорість: <span id="opv">90</span>%</label><div class="ctl"><input type="range" id="op" min="40" max="100" value="90"></div></div>
     </div>
     <div class="card group"><h2>Вікно</h2>
@@ -113,7 +132,6 @@
      <div class="field"><label>Власні теми <span class="note" id="themeCnt"></span></label><div class="ctl row"><span class="themes" id="cthemes"></span><button id="newTheme">Створити тему</button></div></div>
      <div class="field"><label for="fz">Розмір шрифту: <span id="fzv">100</span>%</label><div class="ctl"><input type="range" id="fz" min="80" max="150" value="100"></div></div>
     </div>
-    <div class="card group"><h2>Логотипи та іконки</h2><p class="note" style="margin-bottom:.4em">Будь-який файл (SVG або PNG) автоматично вписується в зафіксовану рамку. Макет не зміщується.</p><div id="imgset"></div></div>
     <div class="card group"><h2>Оновлення</h2>
      <div class="field"><label for="autoupd">Автооновлення</label><div class="ctl"><label class="chk"><input type="checkbox" id="autoupd"> Встановлювати оновлення автоматично під час запуску</label></div></div>
      <div class="field"><label>Поточна версія</label><div class="ctl row"><b id="setv">—</b><button id="chk">Перевірити оновлення</button><span class="hint" id="updMsg"></span></div></div>
@@ -122,6 +140,7 @@
   </main>
  </div>
 
+ <div class="fab"><button class="fab-b" id="fabHelp" title="Довідка" aria-label="Довідка">?</button><button class="fab-b" data-tg data-u="" title="Підтримка в Telegram" aria-label="Підтримка в Telegram"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.6 3.2 2.7 10.4c-1 .4-1 1.1-.2 1.3l4.8 1.5 1.9 5.7c.2.6.4.8.8.8.4 0 .6-.2.9-.5l2.3-2.2 4.7 3.5c.9.5 1.5.2 1.7-.8L22.9 4.5c.3-1.3-.5-1.9-1.3-1.3zM8.9 12.9l9.6-6c.5-.3.8-.1.5.2l-7.9 7.1-.3 3.4z"/></svg></button></div>
  <footer class="foot">
   <span class="gstat"><i class="gd" id="gdot" data-s="none"></i><span id="gs">Гра не вибрана</span></span>
   <span class="auth">Olymp Helper | Author: <button class="lnk" data-tg data-u="">Sanchos</button></span>
@@ -156,7 +175,6 @@
  <div class="row" style="margin-top:.8em"><button class="pri" id="tsave">Зберегти</button><button id="tcancel">Скасувати</button></div>
 </div></div>
 
-<input type="file" id="imgfile" accept="image/*" hidden>
 <div class="toast" id="toast"></div>
 <script src="app.js" defer></script>
 </body></html>

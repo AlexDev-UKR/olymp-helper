@@ -21,6 +21,7 @@ fs.writeFileSync("dist/app.js", dev ? js : obf(js, true));
 // службові вікна: екран завантаження та сповіщення про повторний запуск
 fs.writeFileSync("dist/guard.js", dev ? rd("guard.js") : obf(rd("guard.js"), false));
 fs.copyFileSync("src/logo.svg", "dist/logo.svg");
+fs.copyFileSync("src/banner.svg", "dist/banner.svg");
 fs.cpSync("src/icons", "dist/icons", { recursive: true });
 for (const n of ["splash", "notice"]) {
   fs.writeFileSync(`dist/${n}.html`, rd(`${n}.html`));

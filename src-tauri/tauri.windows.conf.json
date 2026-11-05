@@ -30,7 +30,9 @@
         "skipTaskbar": true,
         "visible": false,
         "resizable": true,
-        "shadow": false
+        "shadow": false,
+        "minWidth": 320,
+        "minHeight": 400
       }
     ],
     "security": {

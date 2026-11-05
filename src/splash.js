@@ -13,7 +13,6 @@ if (window.__TAURI__) {
   listen("boot-ready", showGo);
   listen("boot-done", () => document.body.classList.add("out"));
   invoke("boot_state").then(r => { if (r) showGo(); }).catch(() => {}); // готовність могла настати до відкриття цього вікна
-  invoke("vault_dump").then(r => { const l = r.data && r.data["gov.img.side"]; if (l) $("logo").src = l; }).catch(() => {});
   $("go").addEventListener("click", () => { $("go").disabled = true; invoke("finish_boot_cmd"); });
 } else { // перегляд у браузері
   [[20, "Ініціалізація…"], [50, "Перевірка оновлень…"], [80, "Завантаження модулів…"]].forEach(([v, t], i) => setTimeout(() => set(v, t), 200 + i * 300));
