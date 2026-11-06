@@ -89,8 +89,9 @@
        <div><span>Розшук</span><strong id="tw">—</strong></div>
        <div><span>Застава</span><strong id="tb">—</strong></div>
       </div>
+      <div class="xt hide" id="txw"><span>Додаткові санкції</span><div class="xl" id="tx"></div></div>
       <div id="jnote" class="note warn"></div>
-      <div class="row" style="margin-top:.8em"><button id="clr">Скинути вибір</button><button id="mir">Правило Міранди</button></div>
+      <div class="row" style="margin-top:.8em"><button id="clr">Скинути вибір</button><button id="mir">Правило Міранди</button><button id="copySum">Копіювати підсумок</button></div>
       <textarea id="mtext" readonly hidden></textarea><button id="mcopy" hidden class="wide">Копіювати текст</button>
      </aside>
     </div>
@@ -99,23 +100,36 @@
    <section id="db" class="tab hide only-launcher">
     <h1>📚 Кодекси та Закони</h1><p class="sub">Повний текст нормативно-правових актів без прив’язки до штрафів і термінів. Дані завантажуються з файлу codes.json.</p>
     <div class="reader">
-     <div class="rlist" id="rlist"></div>
-     <div><input type="search" id="rq" placeholder="Пошук у цьому кодексі"><div id="rbody"></div></div>
+     <aside class="rleft"><input type="search" id="rq" placeholder="Пошук за номером, назвою або текстом"><div class="rtree" id="rlist"></div></aside>
+     <article class="rright" id="rbody"></article>
     </div>
    </section>
 
    <section id="faq" class="tab hide">
     <h1 class="only-launcher">Довідник</h1><p class="sub only-launcher">Відповіді на часті питання. Дані завантажуються з файлу faq.json.</p>
     <div class="toolbar"><input type="search" id="fq" placeholder="Пошук у довіднику"></div>
+    <div class="fcats" id="fcats"></div>
     <div class="chips" id="ftags"></div>
     <div id="flist"></div>
    </section>
 
    <section id="notes" class="tab hide">
-    <h1 class="only-launcher">Нотатки</h1><p class="sub only-launcher">Зберігаються на вашому комп’ютері у зашифрованому вигляді й записуються автоматично.</p>
-    <div class="notes">
-     <div><button class="pri wide" id="nnew">+ Нова нотатка</button><div class="nlist" id="nlist"></div></div>
-     <div><textarea id="ntext" disabled></textarea><div class="row" style="margin-top:.6em"><button id="ncopy">Копіювати текст</button><button id="ndel">Видалити</button><span class="note" id="nstat"></span></div></div>
+    <h1 class="only-launcher">Нотатки</h1><p class="sub only-launcher">Зберігаються на вашому комп’ютері у зашифрованому вигляді й записуються автоматично. Шаблони підвантажуються з templates.json.</p>
+    <div class="notes2">
+     <div class="nleft">
+      <div class="split-btn" id="nsplit">
+       <button class="pri" id="nnew">+ Нова нотатка</button>
+       <button class="pri sq" id="ntplBtn" aria-label="Шаблони нотаток" aria-haspopup="true" aria-expanded="false" title="Створити за шаблоном">▾</button>
+       <div class="tpl-menu hide" id="tplMenu" role="menu"></div>
+      </div>
+      <div class="nfilter" id="nfilter"></div>
+      <div class="nlist" id="nlist"></div>
+     </div>
+     <div class="nright">
+      <div class="ntagrow" id="ntagrow"></div>
+      <textarea id="ntext" disabled></textarea>
+      <div class="row" style="margin-top:.6em"><button id="ncopy">Копіювати текст</button><button id="ndel">Видалити</button><span class="note" id="nstat"></span></div>
+     </div>
     </div>
    </section>
 
