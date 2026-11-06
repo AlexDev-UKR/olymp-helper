@@ -10,13 +10,16 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, State, WebviewWindow, WindowEvent, Wry};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt as _};
 use tauri_plugin_dialog::DialogExt;
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+use std::str::FromStr;
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_updater::UpdaterExt;
 
 struct Game { exe: Mutex<String>, running: AtomicBool }
 struct Mode(Mutex<String>);
-struct Hotkey(Mutex<String>);
+#[derive(Clone)]
+struct KeysCfg { toggle: String, click: String, lock: String, stop: String }
+struct Keys(Mutex<KeysCfg>);
 struct VaultState(vault::Vault);
 struct Flags {
     overlay_active: AtomicBool, auto_overlay: AtomicBool, close_tray: AtomicBool, boot_ready: AtomicBool,
@@ -79,9 +82,10 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let f = app.state::<Flags>();
     // пункти оверлею показуються лише коли оверлей фактично активний
     if f.overlay_active.load(Ordering::Relaxed) {
-        let hk = app.state::<Hotkey>().0.lock().unwrap().replace("CommandOrControl", "Ctrl");
+        let hk = app.state::<Keys>().0.lock().unwrap().toggle.replace("CommandOrControl", "Ctrl");
+        let label = if hk.is_empty() { "Показати / Сховати оверлей".to_string() } else { format!("Показати / Сховати оверлей ({hk})") };
         menu.append(&PredefinedMenuItem::separator(app)?)?;
-        menu.append(&MenuItem::with_id(app, "toggle", format!("Показати / Сховати оверлей ({hk})"), true, None::<&str>)?)?;
+        menu.append(&MenuItem::with_id(app, "toggle", label, true, None::<&str>)?)?;
         let ct = if f.click_through.load(Ordering::Relaxed) { "Вимкнути наскрізний режим" } else { "Наскрізний режим" };
         menu.append(&MenuItem::with_id(app, "click", ct, true, None::<&str>)?)?;
         menu.append(&MenuItem::with_id(app, "stop", "Вимкнути оверлей", true, None::<&str>)?)?;
@@ -112,33 +116,37 @@ fn apply(app: &AppHandle, mode: &str) {
     }
 }
 
-fn click_hotkey(base: &str) -> String {
-    let parts: Vec<&str> = base.split('+').map(|s| s.trim()).collect();
-    let Some((key, mods)) = parts.split_last() else { return String::new() };
-    if key.is_empty() { return String::new(); }
-    let has_shift = mods.iter().any(|m| m.eq_ignore_ascii_case("shift"));
-    let mut v: Vec<String> = mods.iter().map(|s| s.to_string()).collect();
-    v.push(if has_shift { "Alt".into() } else { "Shift".into() });
-    v.push(key.to_string());
-    v.join("+")
+fn run_action(app: &AppHandle, name: &str) {
+    match name {
+        "toggle" => toggle(app),
+        "click" => toggle_click(app),
+        "lock" => toggle_lock(app),
+        "stop" => do_stop_overlay(app),
+        _ => {}
+    }
 }
 
 // Глобальні клавіші діють лише поки оверлей «активний», тож не перехоплюють клавішу в інших програмах.
-fn sync_hotkey(app: &AppHandle) -> Result<(), String> {
+// Повертає назви дій, для яких комбінацію не вдалося призначити (неправильна, повторна або зайнята).
+fn sync_hotkey(app: &AppHandle) -> Vec<String> {
     let gs = app.global_shortcut();
-    gs.unregister_all().map_err(|e| e.to_string())?;
-    if app.state::<Flags>().overlay_active.load(Ordering::Relaxed) {
-        let sc = app.state::<Hotkey>().0.lock().unwrap().clone();
-        if !sc.is_empty() {
-            gs.on_shortcut(sc.as_str(), |app, _s, ev| { if ev.state() == ShortcutState::Pressed { toggle(app); } })
-                .map_err(|e| e.to_string())?;
-            let c2 = click_hotkey(&sc);
-            if !c2.is_empty() && c2 != sc {
-                let _ = gs.on_shortcut(c2.as_str(), |app, _s, ev| { if ev.state() == ShortcutState::Pressed { toggle_click(app); } });
-            }
-        }
+    let _ = gs.unregister_all();
+    let k = app.state::<Keys>().0.lock().unwrap().clone();
+    let active = app.state::<Flags>().overlay_active.load(Ordering::Relaxed);
+    let mut bad = Vec::new();
+    let mut seen: Vec<String> = Vec::new();
+    for (name, sc) in [("toggle", k.toggle), ("click", k.click), ("lock", k.lock), ("stop", k.stop)] {
+        if sc.is_empty() { continue; }
+        if Shortcut::from_str(&sc).is_err() || seen.contains(&sc) { bad.push(name.to_string()); continue; }
+        seen.push(sc.clone());
+        if !active { continue; }
+        let n = name.to_string();
+        let r = gs.on_shortcut(sc.as_str(), move |app, _s, ev| {
+            if ev.state() == ShortcutState::Pressed { run_action(app, &n); }
+        });
+        if r.is_err() { bad.push(name.to_string()); }
     }
-    Ok(())
+    bad
 }
 
 fn set_click(app: &AppHandle, on: bool) {
@@ -199,10 +207,9 @@ fn restore_overlay(app: &AppHandle) {
             if on_screen(app, x as i32, y as i32) { let _ = w.set_position(PhysicalPosition::new(x as i32, y as i32)); }
         }
     }
-    if d.get("gov.ovlock").map(|s| s == "1").unwrap_or(false) {
-        app.state::<Flags>().ov_locked.store(true, Ordering::Relaxed);
-        let _ = w.set_resizable(false);
-    }
+    let locked = d.get("gov.ovlock").map(|s| s == "1").unwrap_or(false);
+    app.state::<Flags>().ov_locked.store(locked, Ordering::Relaxed);
+    let _ = w.set_resizable(!locked);
 }
 
 #[tauri::command]
@@ -227,12 +234,24 @@ fn toggle_overlay(app: AppHandle) {
     toggle(&app);
 }
 
-#[tauri::command]
-fn set_overlay_lock(app: AppHandle, locked: bool) {
+fn set_lock(app: &AppHandle, locked: bool) {
     app.state::<Flags>().ov_locked.store(locked, Ordering::Relaxed);
     if let Some(w) = app.get_webview_window("overlay") { let _ = w.set_resizable(!locked); }
-    if let Ok(v) = vault(&app) { let _ = v.0.set("gov.ovlock", (if locked { "1" } else { "0" }).to_string()); }
+    if let Ok(v) = vault(app) { let _ = v.0.set("gov.ovlock", (if locked { "1" } else { "0" }).to_string()); }
+    let _ = app.emit("overlay-lock", locked);
 }
+
+fn toggle_lock(app: &AppHandle) {
+    let cur = app.state::<Flags>().ov_locked.load(Ordering::Relaxed);
+    set_lock(app, !cur);
+}
+
+#[tauri::command]
+fn set_overlay_lock(app: AppHandle, locked: bool) { set_lock(&app, locked) }
+
+// Застосовує збережені (наприклад, імпортовані) позицію, розмір і стан замка оверлею.
+#[tauri::command]
+fn apply_overlay_state(app: AppHandle) { restore_overlay(&app) }
 
 #[tauri::command]
 fn set_overlay_ontop(app: AppHandle, on: bool) {
@@ -258,11 +277,12 @@ fn set_auto_overlay(app: AppHandle, enabled: bool) {
 }
 
 #[tauri::command]
-fn set_hotkey(app: AppHandle, shortcut: String) -> Result<(), String> {
-    *app.state::<Hotkey>().0.lock().unwrap() = shortcut;
-    let r = sync_hotkey(&app);
+fn set_keybinds(app: AppHandle, keys: serde_json::Value) -> Vec<String> {
+    let g = |k: &str| keys.get(k).and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+    *app.state::<Keys>().0.lock().unwrap() = KeysCfg { toggle: g("toggle"), click: g("click"), lock: g("lock"), stop: g("stop") };
+    let bad = sync_hotkey(&app);
     rebuild_tray(&app);
-    r
+    bad
 }
 
 // ---------- службові вікна ----------
@@ -356,11 +376,9 @@ fn is_running(sys: &mut System, raw: &str) -> bool {
     if raw.is_empty() { return false; }
     let name = raw.rsplit('\\').next().unwrap_or("").to_string();
     let full = raw.contains('\\');
-    sys.refresh_processes_specifics(
-        ProcessesToUpdate::All,
-        true,
-        ProcessRefreshKind::new().with_exe(UpdateKind::OnlyIfNotSet),
-    );
+    // шлях до exe запитуємо в системи лише коли користувач вказав повний шлях
+    let kind = if full { ProcessRefreshKind::new().with_exe(UpdateKind::OnlyIfNotSet) } else { ProcessRefreshKind::new() };
+    sys.refresh_processes_specifics(ProcessesToUpdate::All, true, kind);
     sys.processes().values().any(|p| {
         if p.name().to_string_lossy().to_lowercase() != name { return false; }
         if !full { return true; }
@@ -461,7 +479,7 @@ fn main() {
         .plugin(guard_plugin())
         .manage(Game { exe: Mutex::new(String::new()), running: AtomicBool::new(false) })
         .manage(Mode(Mutex::new("overlay".to_string())))
-        .manage(Hotkey(Mutex::new("F5".to_string())))
+        .manage(Keys(Mutex::new(KeysCfg { toggle: "F5".into(), click: "Shift+F5".into(), lock: String::new(), stop: String::new() })))
         .manage(Flags::new())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
@@ -537,7 +555,8 @@ fn main() {
                             }
                         }
                     }
-                    thread::sleep(Duration::from_secs(2));
+                    // без вибраної гри нічого не перевіряємо й спимо довше: менше навантаження на CPU
+                    thread::sleep(Duration::from_secs(if raw.is_empty() { 5 } else { 2 }));
                 }
             });
 
@@ -546,9 +565,9 @@ fn main() {
             thread::spawn(move || {
                 let mut last = String::new();
                 loop {
+                    let Some(w) = hg.get_webview_window("overlay") else { thread::sleep(Duration::from_secs(3)); continue };
+                    if !w.is_visible().unwrap_or(false) { thread::sleep(Duration::from_secs(3)); continue; }
                     thread::sleep(Duration::from_secs(1));
-                    let Some(w) = hg.get_webview_window("overlay") else { continue };
-                    if !w.is_visible().unwrap_or(false) { continue; }
                     if let (Ok(p), Ok(s)) = (w.outer_position(), w.inner_size()) {
                         let j = serde_json::json!({ "x": p.x, "y": p.y, "w": s.width, "h": s.height }).to_string();
                         if j != last {
@@ -585,7 +604,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             toggle_overlay, show_overlay, stop_overlay, set_overlay_mode, set_overlay_lock, set_overlay_ontop,
-            set_click_through, set_auto_overlay, set_close_mode, set_game_exe, game_state, set_hotkey,
+            set_click_through, set_auto_overlay, set_close_mode, set_game_exe, game_state, set_keybinds, apply_overlay_state,
             set_autostart, pick_exe, open_url, app_version, check_update, install_update,
             vault_dump, vault_set, vault_del, finish_boot_cmd, boot_ready, boot_state, notice_ok, win_ctl, set_frame
         ])

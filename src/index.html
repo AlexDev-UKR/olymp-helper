@@ -9,6 +9,7 @@
 
  <div class="app">
   <nav>
+   <span class="nav-ind" id="navInd"></span>
    <div class="brand"><span class="slot lg"><img src="logo.svg" alt=""></span><div class="brand-t"><b>Olymp Helper</b><small>Державний помічник</small></div></div>
    <div class="nav-sec">Головне</div>
    <div class="menu">
@@ -37,7 +38,15 @@
   </nav>
 
   <main>
-   <div class="ovbar" id="ovbar" data-tauri-drag-region><b>Olymp Оверлей</b><div class="ovtabs"><button data-t="laws">Калькулятор</button><button data-t="faq">Довідник</button><button data-t="notes">Нотатки</button></div><div class="ovtools"><button class="ico" id="ovClick" aria-label="Наскрізний режим"></button><button class="ico" id="ovLock" aria-label="Заблокувати позицію"></button><button id="ovClose">Сховати (<span id="hk1">F5</span>)</button></div></div>
+   <div class="ovbar" id="ovbar" data-tauri-drag-region>
+    <div class="ovtabs"><button data-t="laws">Калькулятор</button><button data-t="faq">Довідник</button><button data-t="notes">Нотатки</button></div>
+    <div class="ovdock" id="ovdock">
+     <button class="ico" id="ovClick" aria-label="Наскрізний режим"></button>
+     <button class="ico" id="ovLock" aria-label="Заблокувати позицію"></button>
+     <input type="range" id="ovOp" min="30" max="100" value="90" aria-label="Прозорість оверлею" title="Прозорість">
+     <button class="ico" id="ovClose" aria-label="Сховати оверлей" title="Сховати"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg><span id="hk1" class="vh">F5</span></button>
+    </div>
+   </div>
 
    <div class="notice hide" id="updbar"><span id="updTxt"></span><progress id="prog" max="100" value="0" hidden></progress><button class="pri" id="updBtn">Оновити</button></div>
 
@@ -115,12 +124,16 @@
     <div class="card group"><h2>Оверлей і гра</h2>
      <div class="field"><label for="autoov">Автозапуск оверлею</label><div class="ctl"><label class="chk"><input type="checkbox" id="autoov"> Автоматично запускати оверлей при запуску гри</label></div></div>
      <div class="field"><label for="exe">Процес гри</label><div class="ctl row"><input type="text" id="exe" placeholder="GTA5.exe"><button id="pick">Вибрати…</button></div><p class="hint" id="exeHint"></p></div>
-     <div class="field"><label>Гаряча клавіша</label><div class="ctl row"><span class="hk" id="hk2">F5</span><button id="bind">Змінити</button><span class="hint" id="bindHint"></span></div></div>
-     <div class="field"><label for="lm">Запуск оверлею</label><div class="ctl"><select id="lm"><option value="ask">Щоразу питати</option><option value="overlay">Завжди як оверлей</option><option value="window">Завжди як окремий застосунок</option></select></div></div>
+          <div class="field"><label for="lm">Запуск оверлею</label><div class="ctl"><select id="lm"><option value="ask">Щоразу питати</option><option value="overlay">Завжди як оверлей</option><option value="window">Завжди як окремий застосунок</option></select></div></div>
      <div class="field"><label for="ontop">Поверх вікон</label><div class="ctl"><label class="chk"><input type="checkbox" id="ontop"> Завжди поверх інших вікон (для режиму оверлею)</label></div></div>
      <div class="field"><label for="smart">Розумна прозорість</label><div class="ctl"><label class="chk"><input type="checkbox" id="smart"> Робити оверлей прозорішим, коли він не в фокусі</label></div></div>
      <div class="field"><label for="bgop">Прозорість у фоні: <span id="bgopv">55</span>%</label><div class="ctl"><input type="range" id="bgop" min="20" max="100" value="55"></div><p class="hint">Наскрізний режим (кліки проходять у гру) вмикається кнопкою в шапці оверлею, пунктом меню в треї або клавішею <b id="clickKey">Shift + F5</b>.</p></div>
      <div class="field"><label for="op">Прозорість: <span id="opv">90</span>%</label><div class="ctl"><input type="range" id="op" min="40" max="100" value="90"></div></div>
+    </div>
+    <div class="card group"><h2>Гарячі клавіші</h2>
+     <p class="note" style="margin-bottom:.4em">Глобальні клавіші працюють у грі, поки оверлей активний. Натисніть «Змінити», потім потрібну комбінацію. Esc скасовує, Backspace очищає.</p>
+     <div id="keys"></div>
+     <div class="row" style="margin-top:.7em"><button id="keysReset">Скинути всі до стандартних</button></div>
     </div>
     <div class="card group"><h2>Вікно</h2>
      <div class="field"><label for="frame">Рамка вікна</label><div class="ctl"><select id="frame"><option value="custom">Кастомне вікно застосунку</option><option value="system">Використовувати рамку Windows</option></select></div></div>
@@ -131,6 +144,11 @@
      <div class="field"><label>Теми</label><div class="ctl"><div class="themes" id="themes"></div></div></div>
      <div class="field"><label>Власні теми <span class="note" id="themeCnt"></span></label><div class="ctl row"><span class="themes" id="cthemes"></span><button id="newTheme">Створити тему</button></div></div>
      <div class="field"><label for="fz">Розмір шрифту: <span id="fzv">100</span>%</label><div class="ctl"><input type="range" id="fz" min="80" max="150" value="100"></div></div>
+    </div>
+    <div class="card group"><h2>Профіль налаштувань</h2>
+     <p class="note" style="margin-bottom:.5em">Код містить тему, прозорість, бінди, режими та положення оверлею. Ним зручно ділитися з іншими гравцями.</p>
+     <textarea id="presetCode" class="code-box" rows="4" placeholder="Тут з’явиться код профілю. Щоб застосувати чужий, вставте його сюди й натисніть «Імпортувати»"></textarea>
+     <div class="row" style="margin-top:.6em"><button id="presetExport">Експортувати</button><button class="pri" id="presetImport">Імпортувати</button><span class="hint" id="presetMsg"></span></div>
     </div>
     <div class="card group"><h2>Оновлення</h2>
      <div class="field"><label for="autoupd">Автооновлення</label><div class="ctl"><label class="chk"><input type="checkbox" id="autoupd"> Встановлювати оновлення автоматично під час запуску</label></div></div>
@@ -144,7 +162,7 @@
  <footer class="foot">
   <span class="gstat"><i class="gd" id="gdot" data-s="none"></i><span id="gs">Гра не вибрана</span></span>
   <span class="auth">Olymp Helper | Author: <button class="lnk" data-tg data-u="">Sanchos</button></span>
-  <button class="bug" data-tg data-u="">Знайшли баг? / Підтримка</button>
+  <button class="donate" id="donate" data-u="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>Підтримати автора</button>
  </footer>
 </div>
 
@@ -163,6 +181,11 @@
 <div class="modal hide" id="newsModal" role="dialog" aria-modal="true" aria-labelledby="nt"><div class="card big">
  <div class="row between"><h2 id="nt">Архів новин</h2><button id="newsClose">Закрити</button></div>
  <div class="scroll" id="newsAll"></div>
+</div></div>
+
+<div class="modal hide" id="newsDetail" role="dialog" aria-modal="true" aria-labelledby="ndT"><div class="card big">
+ <div class="row between" style="align-items:flex-start"><div><div class="ntags" id="ndTags"></div><h2 id="ndT" style="margin:.4em 0 .1em"></h2><div class="note" id="ndDate"></div></div><button id="ndClose">Закрити</button></div>
+ <div class="scroll"><div class="ncont" id="ndBody"></div></div>
 </div></div>
 
 <div class="modal hide" id="themeModal" role="dialog" aria-modal="true" aria-labelledby="tt"><div class="card">

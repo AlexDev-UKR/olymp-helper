@@ -29,6 +29,9 @@ const store={
   del(k){if(!TAURI){try{localStorage.removeItem(k)}catch(e){}return}delete MEM[k];invoke("vault_del",{key:k,src:OVERLAY?"overlay":"main"}).catch(()=>{})}
 };
 const parse=s=>{try{return s?JSON.parse(s):null}catch(e){return null}};
+const later={};
+// відкладений запис для повзунків: не пишемо зашифрований файл на кожен піксель руху
+function setLater(k,v,ms=300){MEM[k]=v;clearTimeout(later[k]);later[k]=setTimeout(()=>store.set(k,v),ms)}
 
 const $=id=>document.getElementById(id);
 const toast=t=>{const e=$("toast");e.textContent=t;e.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display="none",2200)};
@@ -201,9 +204,27 @@ addEventListener("focus",()=>{if(!dirty)loadNotes()});
 
 // ---- вкладки, режими, оверлей ----
 const TABS=["hub","laws","db","faq","notes","set"];
+function stagger(sec){
+  const el=$(sec);if(!el)return;el.classList.remove("stg");void el.offsetWidth;
+  [...el.children].forEach((c,i)=>c.style.setProperty("--i",Math.min(i,9)));el.classList.add("stg");
+}
+function moveInd(){ // ковзна акцентна смуга активного пункту меню
+  const a=document.querySelector(".menu .nv.on"),ind=$("navInd");if(!a||!ind||!a.offsetHeight)return;
+  ind.style.setProperty("--y",a.offsetTop+"px");ind.style.height=a.offsetHeight+"px";
+  if(!ind.classList.contains("ready"))requestAnimationFrame(()=>ind.classList.add("ready"));
+}
+function reveal(){ // плавна поява інтерфейсу після екрана завантаження
+  document.body.classList.remove("pre");
+  if(OVERLAY)return;
+  [...document.querySelectorAll("nav>*:not(.nav-ind)")].forEach((el,i)=>el.style.setProperty("--n",i));
+  document.body.classList.add("intro");moveInd();
+  stagger(TABS.find(x=>!$(x).classList.contains("hide"))||"hub");
+  setTimeout(()=>document.body.classList.remove("intro"),1800);
+}
 function tab(t){
   TABS.forEach(x=>$(x).classList.toggle("hide",x!==t));
   document.querySelectorAll("[data-t]").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
+  if(!document.body.classList.contains("ov")){moveInd();stagger(t)}
   if(t==="laws")setTimeout(()=>$("q").focus(),0);if(t==="faq")setTimeout(()=>$("fq").focus(),0);if(t==="notes")loadNotes();if(t==="hub")refreshNews();
 }
 document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>tab(b.dataset.t));
@@ -215,7 +236,7 @@ function overlay(on){
 $("ovClose").onclick=()=>overlay(false);
 function launch(m){
   if(TAURI){invoke("show_overlay",{mode:m});return}
-  document.body.classList.toggle("framed",m==="window");overlay(true);toast("Оверлей активний. Виклик: "+hotkey);
+  document.body.classList.toggle("framed",m==="window");overlay(true);toast("Оверлей активний. Виклик: "+keyLabel(KEYS.toggle));
 }
 const modal=$("modal"),closeModal=()=>modal.classList.add("hide");
 $("runOv").onclick=()=>{if(G.ov&&TAURI){invoke("stop_overlay");return}const p=store.get("gov.lm")||"ask";if(p==="ask"){modal.classList.remove("hide");modal.querySelector("[data-m]").focus()}else launch(p)};
@@ -228,23 +249,70 @@ modal.addEventListener("click",e=>{
 $("lm").onchange=()=>{const v=$("lm").value;store.set("gov.lm",v);if(TAURI&&v!=="ask")invoke("set_overlay_mode",{mode:v})};
 
 // ---- налаштування ----
-let hotkey="F5",binding=false;
-const clickKey=h=>{const p=h.split(" + "),k=p.pop();return[...p,p.includes("Shift")?"Alt":"Shift",k].join(" + ")};
-const combo=e=>[e.ctrlKey&&"Ctrl",e.shiftKey&&"Shift",e.altKey&&"Alt",!["Control","Shift","Alt","Meta"].includes(e.key)&&(e.key.length===1?e.key.toUpperCase():e.key===" "?"Space":e.key)].filter(Boolean).join(" + ");
-function setHK(c){hotkey=c;$("hk1").textContent=c;$("hk2").textContent=c;$("clickKey").textContent=clickKey(c);store.set("gov.hk",c);if(TAURI&&!OVERLAY)invoke("set_hotkey",{shortcut:acc(c)}).catch(()=>toast("Клавіша недоступна: "+c))}
-$("bind").onclick=()=>{binding=true;$("bindHint").textContent="Натисніть нову комбінацію…"};
+// ---- менеджер гарячих клавіш ----
+const KEYS_DEF=[
+  {id:"toggle",n:"Показати / сховати оверлей",h:"Глобальна: працює в грі",d:"F5",g:true},
+  {id:"click",n:"Наскрізний режим оверлею",h:"Глобальна: кліки проходять у гру",d:"Shift + F5",g:true},
+  {id:"lock",n:"Замок позиції оверлею",h:"Глобальна: заблокувати / розблокувати",d:"",g:true},
+  {id:"stop",n:"Вимкнути оверлей",h:"Глобальна",d:"",g:true},
+  {id:"search",n:"Пошук по законах",h:"Лише у вікні застосунку",d:"Ctrl + K",g:false}];
+const KEYS={};KEYS_DEF.forEach(k=>KEYS[k.id]=k.d);
+let listening=null;
+const keyLabel=k=>k||"не призначено";
+const CODEKEY={Space:"Space",Enter:"Enter",Tab:"Tab",Home:"Home",End:"End",PageUp:"PageUp",PageDown:"PageDown",Insert:"Insert",Delete:"Delete",Backspace:"Backspace",ArrowUp:"Up",ArrowDown:"Down",ArrowLeft:"Left",ArrowRight:"Right",Minus:"Minus",Equal:"Equal",Comma:"Comma",Period:"Period",Slash:"Slash",Semicolon:"Semicolon",Quote:"Quote",BracketLeft:"BracketLeft",BracketRight:"BracketRight",Backslash:"Backslash",Backquote:"Backquote"};
+function keyName(e){const c=e.code||"";if(/^Key[A-Z]$/.test(c))return c.slice(3);if(/^Digit\d$/.test(c))return c.slice(5);if(/^F([1-9]|1[0-2])$/.test(c))return c;return CODEKEY[c]||""}
+const combo=e=>{const k=keyName(e);return k?[e.ctrlKey&&"Ctrl",e.shiftKey&&"Shift",e.altKey&&"Alt",k].filter(Boolean).join(" + "):""};
+function validKey(id,c){
+  if(!c)return"";
+  const def=KEYS_DEF.find(k=>k.id===id),parts=c.split(" + "),key=parts[parts.length-1],fkey=/^F\d+$/.test(key);
+  if(def.g&&parts.length===1&&!fkey&&!["Home","End","PageUp","PageDown","Insert"].includes(key))return"Для глобальної клавіші потрібен Ctrl, Alt або Shift (або F-клавіша)";
+  if(!def.g&&!parts.includes("Ctrl")&&!parts.includes("Alt")&&!fkey)return"Для цієї дії потрібен Ctrl або Alt";
+  const dup=KEYS_DEF.find(k=>k.id!==id&&KEYS[k.id]===c);if(dup)return"Вже використовується: «"+dup.n+"»";
+  return"";
+}
+function pushKeys(){
+  if(!TAURI||OVERLAY)return;
+  const keys={};KEYS_DEF.filter(d=>d.g).forEach(d=>keys[d.id]=acc(KEYS[d.id]||""));
+  invoke("set_keybinds",{keys}).then(bad=>{if(bad&&bad.length)toast("Не вдалося призначити: "+bad.map(i=>(KEYS_DEF.find(d=>d.id===i)||{n:i}).n).join(", "))}).catch(()=>{});
+}
+function renderKeys(){
+  $("keys").innerHTML=KEYS_DEF.map(d=>`<div class="krow"><div class="kn">${esc(d.n)}<small>${esc(d.h)}</small></div><span class="kc ${listening===d.id?"listen":KEYS[d.id]?"":"empty"}">${listening===d.id?"Натисніть клавішу…":esc(keyLabel(KEYS[d.id]))}</span><div class="kb"><button data-kb="${d.id}">${listening===d.id?"Скасувати":"Змінити"}</button><button data-kc="${d.id}" ${KEYS[d.id]?"":"disabled"}>Очистити</button><button data-kr="${d.id}" ${KEYS[d.id]===d.d?"disabled":""}>Скинути</button></div></div>`).join("");
+  $("hk1").textContent=KEYS.toggle||"";$("clickKey").textContent=keyLabel(KEYS.click);
+}
+function saveKeys(){store.set("gov.keys",JSON.stringify(KEYS));renderKeys();pushKeys();renderOvTools()}
+function loadKeys(){
+  const k=parse(store.get("gov.keys"));
+  if(k&&typeof k==="object"){KEYS_DEF.forEach(d=>{if(typeof k[d.id]==="string")KEYS[d.id]=k[d.id]})}
+  else{const old=store.get("gov.hk");if(old)KEYS.toggle=old} // міграція зі старих версій
+  renderKeys();
+}
+function setKey(id,c){const err=validKey(id,c);if(err){toast(err);return}KEYS[id]=c;listening=null;saveKeys()}
+$("keys").addEventListener("click",e=>{
+  const b=e.target.closest("[data-kb]"),c=e.target.closest("[data-kc]"),r=e.target.closest("[data-kr]");
+  if(b){listening=listening===b.dataset.kb?null:b.dataset.kb;renderKeys()}
+  if(c){KEYS[c.dataset.kc]="";saveKeys()}
+  if(r){const d=KEYS_DEF.find(k=>k.id===r.dataset.kr),err=validKey(d.id,d.d);if(err&&d.d){toast(err);return}KEYS[d.id]=d.d;saveKeys()}
+});
+$("keysReset").onclick=()=>{KEYS_DEF.forEach(d=>KEYS[d.id]=d.d);listening=null;saveKeys();toast("Бінди скинуто до стандартних")};
 document.addEventListener("keydown",e=>{
-  if(binding){e.preventDefault();if(["Control","Shift","Alt","Meta"].includes(e.key))return;setHK(combo(e));binding=false;$("bindHint").textContent="Збережено";return}
-  if((e.ctrlKey||e.metaKey)&&e.code==="KeyK"){e.preventDefault();tab("laws");$("q").focus();$("q").select();return}
-  if(!TAURI&&combo(e)===hotkey){e.preventDefault();overlay(!document.body.classList.contains("ov"))}
+  if(listening){ // режим «Натисніть клавішу…»
+    e.preventDefault();
+    if(e.key==="Escape"){listening=null;renderKeys();return}
+    if((e.key==="Backspace"||e.key==="Delete")&&!e.ctrlKey&&!e.altKey&&!e.shiftKey){const id=listening;listening=null;KEYS[id]="";saveKeys();return}
+    if(["Control","Shift","Alt","Meta"].includes(e.key))return;
+    const c=combo(e);if(!c){toast("Ця клавіша не підтримується");return}
+    setKey(listening,c);return;
+  }
+  if(KEYS.search&&combo(e)===KEYS.search){e.preventDefault();tab("laws");$("q").focus();$("q").select();return}
+  if(!TAURI&&KEYS.toggle&&combo(e)===KEYS.toggle){e.preventDefault();overlay(!document.body.classList.contains("ov"))}
   if(e.key==="Escape"){
-    const m=document.querySelector(".modal:not(.hide)");
+    const m=[...document.querySelectorAll(".modal:not(.hide)")].pop();
     if(m){m.classList.add("hide");if(m.id==="themeModal")pickTheme();return}
     if(document.body.classList.contains("ov"))overlay(false);
   }
 });
-$("op").oninput=e=>{$("opv").textContent=e.target.value;document.documentElement.style.setProperty("--ov",e.target.value/100);store.set("gov.op",e.target.value)};
-$("fz").oninput=e=>{$("fzv").textContent=e.target.value;document.documentElement.style.setProperty("--fs",(15*e.target.value/100)+"px");store.set("gov.fz",e.target.value)};
+$("op").oninput=e=>{$("opv").textContent=e.target.value;document.documentElement.style.setProperty("--ov",e.target.value/100);setLater("gov.op",e.target.value)};
+$("fz").oninput=e=>{$("fzv").textContent=e.target.value;document.documentElement.style.setProperty("--fs",(15*e.target.value/100)+"px");setLater("gov.fz",e.target.value);requestAnimationFrame(moveInd)};
 $("auto").onchange=e=>{store.set("gov.auto",e.target.checked?"1":"0");if(TAURI)invoke("set_autostart",{enabled:e.target.checked}).catch(()=>toast("Не вдалося змінити автозапуск"))};
 
 // ---- гра: єдине джерело стану для нижньої панелі ----
@@ -341,12 +409,15 @@ $("tsave").onclick=()=>{
 // ---- новини, ресурси, зображення, маніфест ----
 let NEWS=[];
 const dmy=s=>{const m=/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(String(s||"").trim());return m?new Date(+m[3],+m[2]-1,+m[1]).getTime():null};
-const newsItem=i=>`<article class="item"><time>${esc(i.date)}</time><div><h3>${esc(i.title)}${i.tag?`<span class="ntag">${esc(i.tag)}</span>`:""}</h3><p>${esc(i.text)}</p></div></article>`;
-const newsCard=i=>`<article class="ncard">${i.tag?`<span class="ntag">${esc(i.tag)}</span>`:""}<time>${esc(i.date)}</time><h3>${esc(i.title)}</h3><p>${esc(i.text)}</p></article>`;
+// формат v1.2.6: id, date, title, tags[], summary (короткий опис), content (детальний текст). Старий формат (tag, text) теж читається.
+const nrm=i=>({id:String(i.id??i.title??""),date:String(i.date||""),title:String(i.title||""),tags:(Array.isArray(i.tags)?i.tags:(i.tag?[i.tag]:[])).map(String).slice(0,5),summary:String(i.summary??i.text??""),content:String(i.content??"")});
+const tagsHtml=t=>t.length?`<div class="ntags">${t.map(x=>`<span class="ntag">${esc(x)}</span>`).join("")}</div>`:"";
+const newsCard=(n,k)=>`<article class="ncard" tabindex="0" role="button" data-n="${k}">${tagsHtml(n.tags)}<time>${esc(n.date)}</time><h3>${esc(n.title)}</h3><p>${esc(n.summary)}</p>${n.content?'<span class="more">Докладніше →</span>':""}</article>`;
+const newsItem=(n,k)=>`<article class="item" tabindex="0" role="button" data-n="${k}"><time>${esc(n.date)}</time><div><h3>${esc(n.title)}</h3>${tagsHtml(n.tags)}<p>${esc(n.summary)}</p></div></article>`;
 let newsSig="";
 function setNews(items,smooth){
   newsSig=JSON.stringify(items||[]);
-  NEWS=[...(items||[])];
+  NEWS=(items||[]).map(nrm);
   if(NEWS.length&&NEWS.every(i=>dmy(i.date)!==null))NEWS.sort((a,b)=>dmy(b.date)-dmy(a.date));
   const box=$("news");
   if(smooth)box.style.minHeight=box.offsetHeight+"px"; // без стрибка верстки під час оновлення
@@ -366,6 +437,19 @@ async function refreshNews(){
     store.set("news.cache",JSON.stringify(d));setNews(d.items,true);
   }catch(e){}
 }
+function openNews(k){
+  const n=NEWS[k];if(!n)return;
+  $("ndT").textContent=n.title;$("ndDate").textContent=n.date;
+  $("ndTags").innerHTML=n.tags.map(x=>`<span class="ntag">${esc(x)}</span>`).join("");
+  $("ndBody").textContent=n.content||n.summary;
+  $("newsDetail").classList.remove("hide");
+}
+for(const id of["news","newsAll"]){
+  $(id).addEventListener("click",e=>{const a=e.target.closest("[data-n]");if(a)openNews(+a.dataset.n)});
+  $(id).addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){const a=e.target.closest("[data-n]");if(a){e.preventDefault();openNews(+a.dataset.n)}}});
+}
+$("ndClose").onclick=()=>$("newsDetail").classList.add("hide");
+$("newsDetail").addEventListener("click",e=>{if(e.target.id==="newsDetail")$("newsDetail").classList.add("hide")});
 $("newsMore").onclick=()=>$("newsModal").classList.remove("hide");
 $("newsClose").onclick=()=>$("newsModal").classList.add("hide");
 $("newsModal").addEventListener("click",e=>{if(e.target.id==="newsModal")$("newsModal").classList.add("hide")});
@@ -428,7 +512,9 @@ $("rq").addEventListener("input",()=>requestAnimationFrame(renderReader));
 
 // ---- оновлення застосунку ----
 let APPV="",MINV="";
-const cmp=(a,b)=>{const x=a.split(".").map(Number),y=b.split(".").map(Number);for(let i=0;i<3;i++){const d=(x[i]||0)-(y[i]||0);if(d)return d}return 0};
+const cmpPre=(a,b)=>{const x=a.split("."),y=b.split(".");for(let i=0;i<Math.max(x.length,y.length);i++){if(x[i]===undefined)return-1;if(y[i]===undefined)return 1;const nx=/^\d+$/.test(x[i]),ny=/^\d+$/.test(y[i]);if(nx&&ny){const d=x[i]-y[i];if(d)return d<0?-1:1}else if(nx!==ny)return nx?-1:1;else if(x[i]!==y[i])return x[i]<y[i]?-1:1}return 0};
+const semver=v=>{const m=/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?/.exec(String(v));return m?{n:[+m[1],+m[2],+m[3]],p:m[4]||""}:null};
+const cmp=(a,b)=>{const x=semver(a),y=semver(b);if(!x||!y)return 0;for(let i=0;i<3;i++){const d=x.n[i]-y.n[i];if(d)return d}if(x.p===y.p)return 0;if(!x.p)return 1;if(!y.p)return -1;return cmpPre(x.p,y.p)}; // 1.2.6-beta.1 < 1.2.6
 function verCheck(){if(MINV&&APPV&&cmp(APPV,MINV)<0){$("updbar").classList.add("must");$("updbar").classList.remove("hide");$("updTxt").textContent="Обов’язкове оновлення: ваша версія застаріла і може працювати некоректно."}}
 async function checkUpdate(manual){
   if(!TAURI){if(manual)toast("Перевірка оновлень доступна в застосунку");return}
@@ -452,9 +538,10 @@ async function bootTauri(){
   ev.listen("game-status",e=>{G.running=!!e.payload;renderGs()});
   ev.listen("overlay-active",e=>{G.ov=!!e.payload;renderGs()});
   invoke("game_state").then(s=>{G.running=!!s.running;G.ov=!!s.overlay;renderGs()});
-  ev.listen("boot-done",()=>{setTimeout(()=>document.body.classList.remove("pre"),450);if(RESTORED)toast("Пошкоджені локальні файли відновлено")});
+  ev.listen("boot-done",()=>{setTimeout(reveal,450);if(RESTORED)toast("Пошкоджені локальні файли відновлено")});
   ev.listen("overlay-click",e=>{CLICK=!!e.payload;renderOvTools()});
   ev.listen("win-flush",e=>document.body.classList.toggle("maxd",!!e.payload));
+  ev.listen("overlay-lock",e=>setLockUi(!!e.payload));
   ev.listen("overlay-mode",e=>document.body.classList.toggle("framed",e.payload==="window"));
   ev.listen("update-progress",e=>{const{got,total}=e.payload,pc=total?got/total*100:0;$("prog").value=pc;bp(22+pc*.7)});
   let rl=0;ev.listen("vault-changed",e=>{
@@ -464,44 +551,105 @@ async function bootTauri(){
     else if(key==="notes.cache"&&!dirty)loadNotes();
   });
   invoke("app_version").then(v=>{APPV=v;$("appv").textContent="v"+v;$("setv").textContent="v"+v;verCheck()});
-  const lm=store.get("gov.lm");if(lm&&lm!=="ask")invoke("set_overlay_mode",{mode:lm});
-  invoke("set_auto_overlay",{enabled:$("autoov").checked});
-  invoke("set_overlay_ontop",{on:$("ontop").checked});
-  invoke("set_close_mode",{tray:$("closeb").value==="tray"});
-  if(!OVERLAY){setHK(hotkey);applyFrame($("frame").value==="custom")}
+  pushState();
 }
 
-// ---- оверлей: замок позиції, наскрізний режим, розумна прозорість ----
+// ---- оверлей: міні-панель (замок, наскрізний режим, прозорість), розумна прозорість ----
 let ovLocked=false,CLICK=false;
-const IC_LOCK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
-const IC_OPEN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.4-2"/></svg>';
-const IC_CUR='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 7-6 2-2 6z"/></svg>';
+const IC_LOCK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+const IC_OPEN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.4-2"/></svg>';
+const IC_CUR='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 7-6 2-2 6z"/></svg>';
 function renderOvTools(){
   const l=$("ovLock"),c=$("ovClick");
   l.innerHTML=ovLocked?IC_LOCK:IC_OPEN;l.classList.toggle("on",ovLocked);
   l.title=ovLocked?"Позицію й розмір заблоковано. Натисніть, щоб розблокувати":"Заблокувати позицію й розмір";
   c.innerHTML=IC_CUR;c.classList.toggle("on",CLICK);
-  c.title=CLICK?"Наскрізний режим увімкнено ("+clickKey(hotkey)+" вимикає)":"Наскрізний режим: кліки проходять у гру";
+  c.title=CLICK?"Наскрізний режим увімкнено"+(KEYS.click?" ("+KEYS.click+" вимикає)":""):"Наскрізний режим: кліки проходять у гру";
   $("ovbar").toggleAttribute("data-tauri-drag-region",!ovLocked); // заблоковано: перетягування вимкнено
 }
+function setLockUi(v){ovLocked=v;MEM["gov.ovlock"]=v?"1":"0";renderOvTools()}
 $("ovLock").onclick=()=>{
-  ovLocked=!ovLocked;MEM["gov.ovlock"]=ovLocked?"1":"0";renderOvTools();
-  if(TAURI)invoke("set_overlay_lock",{locked:ovLocked}); // Rust вимикає зміну розміру й зберігає стан
-  toast(ovLocked?"Позицію заблоковано":"Позицію розблоковано");
+  const v=!ovLocked;setLockUi(v);
+  if(TAURI)invoke("set_overlay_lock",{locked:v}); // Rust вимикає зміну розміру, зберігає стан і повідомляє всі вікна
+  toast(v?"Позицію заблоковано":"Позицію розблоковано");
 };
 $("ovClick").onclick=()=>{
   if(!TAURI)return;
   invoke("set_click_through",{on:!CLICK});
-  if(!CLICK)toast("Наскрізний режим: вимкнути можна клавішею "+clickKey(hotkey));
+  if(!CLICK)toast(KEYS.click?"Наскрізний режим: вимкнути можна клавішею "+KEYS.click:"Наскрізний режим увімкнено. Вимкнути можна в треї");
 };
+$("ovOp").oninput=e=>{$("op").value=e.target.value;$("op").oninput({target:$("op")})};
 if(OVERLAY){
   addEventListener("blur",()=>document.body.classList.add("inactive"));
   addEventListener("focus",()=>document.body.classList.remove("inactive"));
 }
+// невидиме вікно й фонові анімації не навантажують процесор
+document.addEventListener("visibilitychange",()=>document.body.classList.toggle("idle",document.hidden));
 $("fabHelp").onclick=()=>tab("faq");
 $("ontop").onchange=e=>{store.set("gov.ontop",e.target.checked?"1":"0");if(TAURI)invoke("set_overlay_ontop",{on:e.target.checked})};
 $("smart").onchange=e=>store.set("gov.smart",e.target.checked?"1":"0");
-$("bgop").oninput=e=>{$("bgopv").textContent=e.target.value;store.set("gov.bgop",e.target.value)};
+$("bgop").oninput=e=>{$("bgopv").textContent=e.target.value;setLater("gov.bgop",e.target.value)};
+
+// ---- профілі налаштувань: експорт / імпорт текстовим кодом ----
+const P_KEYS=["theme","themes","op","bgop","smart","ontop","ovgeo","ovlock","keys","fz","lm","frame","close"];
+const b64e=u8=>{let s="";u8.forEach(b=>s+=String.fromCharCode(b));return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")};
+const b64d=s=>{s=s.replace(/-/g,"+").replace(/_/g,"/");while(s.length%4)s+="=";return Uint8Array.from(atob(s),c=>c.charCodeAt(0))};
+const pipeBytes=async(u8,S)=>new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new S("deflate-raw"))).arrayBuffer());
+async function exportPreset(){
+  const o={};for(const k of P_KEYS){const v=store.get("gov."+k);if(v!==null&&v!==undefined)o[k]=v}
+  const raw=new TextEncoder().encode(JSON.stringify(o));
+  try{if(typeof CompressionStream!=="undefined")return"OLYP1."+b64e(await pipeBytes(raw,CompressionStream))}catch(e){}
+  return"OLYP0."+b64e(raw);
+}
+async function decodePreset(code){
+  const m=/^OLYP([01])\.([A-Za-z0-9_-]+)$/.exec(String(code).trim());
+  if(!m||code.length>30000)throw new Error("Невірний формат коду");
+  let u8=b64d(m[2]);
+  if(m[1]==="1"){if(typeof DecompressionStream==="undefined")throw new Error("Цей код створено новішою системою");u8=await pipeBytes(u8,DecompressionStream)}
+  const o=JSON.parse(new TextDecoder().decode(u8));
+  if(!o||typeof o!=="object"||Array.isArray(o))throw new Error("Пошкоджений код");
+  return o;
+}
+const isInt=(v,a,b)=>/^-?\d+$/.test(String(v))&&+v>=a&&+v<=b;
+const KEYRE=/^[A-Za-z0-9 +\-=.,;'`\[\]\/\\]{0,40}$/;
+function sanitize(o){ // код від іншої людини вважається недовіреним: перевіряємо кожне значення
+  const r={},bad=m=>{throw new Error(m)};
+  if("theme" in o){if(!/^[\w-]{1,24}$/.test(String(o.theme)))bad("Невірна тема");r.theme=String(o.theme)}
+  if("themes" in o){
+    const a=parse(o.themes);if(!Array.isArray(a)||a.length>5)bad("Невірні власні теми");
+    r.themes=JSON.stringify(a.map(t=>{
+      if(!t||!/^c\w{1,20}$/.test(String(t.id))||!HEX.test(t.ac)||!HEX.test(t.p)||!isInt(t.r,0,20))bad("Невірна тема у профілі");
+      return{id:String(t.id),name:String(t.name||"Тема").slice(0,24),ac:t.ac,p:t.p,r:+t.r};
+    }));
+  }
+  if("op" in o){if(!isInt(o.op,30,100))bad("Невірна прозорість");r.op=String(o.op)}
+  if("bgop" in o){if(!isInt(o.bgop,20,100))bad("Невірна прозорість у фоні");r.bgop=String(o.bgop)}
+  if("fz" in o){if(!isInt(o.fz,80,150))bad("Невірний розмір шрифту");r.fz=String(o.fz)}
+  for(const k of["smart","ontop","ovlock"])if(k in o){if(!["0","1"].includes(String(o[k])))bad("Невірний параметр");r[k]=String(o[k])}
+  if("lm" in o){if(!["ask","overlay","window"].includes(o.lm))bad("Невірний режим запуску");r.lm=o.lm}
+  if("frame" in o){if(!["custom","system"].includes(o.frame))bad("Невірна рамка вікна");r.frame=o.frame}
+  if("close" in o){if(!["tray","exit"].includes(o.close))bad("Невірна поведінка закриття");r.close=o.close}
+  if("ovgeo" in o){const g=parse(o.ovgeo);if(!g||!isInt(g.x,-20000,20000)||!isInt(g.y,-20000,20000)||!isInt(g.w,200,10000)||!isInt(g.h,200,10000))bad("Невірне положення оверлею");r.ovgeo=JSON.stringify({x:+g.x,y:+g.y,w:+g.w,h:+g.h})}
+  if("keys" in o){
+    const k=parse(o.keys);if(!k||typeof k!=="object")bad("Невірні бінди");const out={};
+    for(const d of KEYS_DEF)if(d.id in k){if(typeof k[d.id]!=="string"||!KEYRE.test(k[d.id]))bad("Невірний бінд");out[d.id]=k[d.id]}
+    const v=Object.values(out).filter(Boolean);if(new Set(v).size!==v.length)bad("У бінді є дублікати");r.keys=JSON.stringify(out);
+  }
+  if(!Object.keys(r).length)bad("У коді немає налаштувань");
+  return r;
+}
+async function importPreset(code){
+  const r=sanitize(await decodePreset(code));
+  for(const k in r)store.set("gov."+k,r[k]);
+  syncUi();pushState();
+  if(TAURI&&"ovgeo" in r||"ovlock" in r)setTimeout(()=>{if(TAURI)invoke("apply_overlay_state")},500);
+  return Object.keys(r).length;
+}
+$("presetExport").onclick=async()=>{const c=await exportPreset();$("presetCode").value=c;$("presetMsg").textContent="Код створено й скопійовано";copy(c)};
+$("presetImport").onclick=async()=>{
+  try{const n=await importPreset($("presetCode").value);$("presetMsg").textContent="Застосовано параметрів: "+n;toast("Профіль імпортовано")}
+  catch(e){$("presetMsg").textContent=e.message||"Не вдалося імпортувати"}
+};
 
 // ---- завантажувач (bootstrapper): прогрес показує окреме вікно splash ----
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -509,21 +657,21 @@ const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rj)=>setTimeout(()=>rj(
 const bp=(v,t)=>{if(TAURI&&!OVERLAY)window.__TAURI__.event.emit("boot-progress",{v,t}).catch(()=>{})};
 async function finish(){
   bp(100,"Готово");
-  if(TAURI)invoke("boot_ready").catch(()=>document.body.classList.remove("pre"));
-  else{document.body.classList.remove("pre");if(RESTORED)toast("Пошкоджені локальні файли відновлено")}
+  if(TAURI)invoke("boot_ready").catch(reveal);
+  else{reveal();if(RESTORED)toast("Пошкоджені локальні файли відновлено")}
 }
 async function preload(){
   if(!TAURI)return[];
   for(let i=0;i<15;i++){try{const r=await invoke("vault_dump");Object.assign(MEM,r.data);return r.restored||[]}catch(e){await sleep(200)}}
   return[];
 }
-function initUi(){
+function syncUi(){
   document.querySelectorAll("[data-tg]").forEach(e=>e.dataset.u=TG_URL);
   if(!TAURI)document.body.classList.add("web");
-  const h=store.get("gov.hk");if(h){hotkey=h;$("hk1").textContent=h;$("hk2").textContent=h;$("clickKey").textContent=clickKey(h)}
-  const o=store.get("gov.op");if(o){$("op").value=o;$("op").oninput({target:$("op")})}
+  loadKeys();
+  const o=store.get("gov.op");if(o){$("op").value=o;$("ovOp").value=o;$("op").oninput({target:$("op")})}
   const f=store.get("gov.fz");if(f){$("fz").value=f;$("fz").oninput({target:$("fz")})}
-  loadThemes();pickTheme();applyLinks(null);
+  loadThemes();pickTheme();
   G.exe=store.get("gov.exe")||"";$("exe").value=G.exe;
   $("autoov").checked=store.get("gov.autoov")==="1";syncExeUi();renderGs();
   const fr=store.get("gov.frame")||"custom";$("frame").value=fr;document.body.classList.toggle("sysframe",fr!=="custom");
@@ -537,8 +685,20 @@ function initUi(){
   document.documentElement.style.setProperty("--bgop",bo/100);
   document.body.classList.toggle("smart",OVERLAY&&$("smart").checked);
   ovLocked=store.get("gov.ovlock")==="1";renderOvTools();
-  if(OVERLAY){document.body.classList.add("ov");tab("laws")}else addEventListener("online",()=>loadAll(false));
+}
+function initUi(){
+  syncUi();applyLinks(null);
+  if(OVERLAY){document.body.classList.add("ov");tab("laws")}
+  else{addEventListener("online",()=>loadAll(false));addEventListener("resize",moveInd);requestAnimationFrame(moveInd)}
   addEventListener("offline",()=>setNet(false));
+}
+function pushState(){ // передає налаштування у Rust
+  if(!TAURI)return;
+  invoke("set_auto_overlay",{enabled:$("autoov").checked});
+  invoke("set_overlay_ontop",{on:$("ontop").checked});
+  invoke("set_close_mode",{tray:$("closeb").value==="tray"});
+  const lm=$("lm").value;if(lm!=="ask")invoke("set_overlay_mode",{mode:lm});
+  if(!OVERLAY){pushKeys();applyFrame($("frame").value==="custom")}
 }
 $("autoupd").onchange=e=>store.set("gov.autoupd",e.target.checked?"1":"0");
 
@@ -550,7 +710,7 @@ async function main(){
   if(TAURI)await bootTauri();
   if(OVERLAY){loadNotes();loadFromStore();return}
   loadNotes();
-  setInterval(()=>{if(!document.hidden)refreshNews()},60000);addEventListener("focus",()=>refreshNews());
+  let slow=0;setInterval(()=>{if(document.hidden)return;if(!$("hub").classList.contains("hide")||++slow%5===0)refreshNews()},60000);addEventListener("focus",()=>refreshNews());
   if(RESTORED)bp(20,"Виявлено пошкоджені локальні файли. Відновлюємо…");
   // 1. Оновлення застосунку (підписане): завантажується з прогресом, після встановлення застосунок перезапускається
   if(TAURI&&store.get("gov.autoupd")!=="0"&&navigator.onLine){

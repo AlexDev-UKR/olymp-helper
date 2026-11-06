@@ -137,7 +137,7 @@ main{min-height:0;overflow-y:auto;padding:1.3em 1.7em 1.5em}
 .opts button b{font-weight:600}.opts button span{color:var(--mut);font-size:.88em}
 .toast{position:fixed;bottom:3em;right:1.2em;background:var(--l3);border:1px solid var(--b2);padding:.55em 1em;border-radius:var(--r2);display:none;font-size:.92em;z-index:60}
 .hide{display:none!important}[hidden]{display:none!important}
-.tab:not(.hide){animation:fade .18s ease both}
+.tab:not(.hide){animation:none}
 .modal:not(.hide){animation:fade .15s ease both}.modal:not(.hide) .card{animation:pop .2s var(--ease) both}
 @keyframes fade{from{opacity:0}}@keyframes pop{from{opacity:0;transform:scale(.97)}}
 /* оверлей: компактний режим */
@@ -265,3 +265,78 @@ body.ov.smart.inactive .win{opacity:var(--bgop)}
 body.ov.smart.inactive .win:hover{opacity:1}
 /* копіювання статей */
 .dh{display:flex;align-items:baseline;gap:.5em}.dh .cp{margin-left:auto;padding:.15em .7em;font-size:.82em}
+
+/* ===== v1.2.6: рух, скло, мінімалістичний оверлей ===== */
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+nav{position:relative}
+.menu .nv{position:relative;z-index:1}
+.menu .nv.on{background:none;border-color:transparent}
+.nav-ind{position:absolute;left:.75em;right:.75em;top:0;height:2.4em;z-index:0;border-radius:var(--r2);pointer-events:none;opacity:0;
+  background:color-mix(in srgb,var(--ac) 13%,transparent);border:1px solid color-mix(in srgb,var(--ac) 26%,transparent);transform:translateY(var(--y,0px))}
+.nav-ind.ready{opacity:1;transition:transform .4s var(--ease),height .3s var(--ease)}
+.nav-ind::before{content:"";position:absolute;left:-1px;top:22%;bottom:22%;width:3px;border-radius:3px;background:var(--ac)}
+.tab.stg>*{animation:rise .45s var(--ease) both;animation-delay:calc(var(--i,0)*55ms)}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}}
+@keyframes slidein{from{opacity:0;transform:translateX(-10px)}}
+body.intro nav>*:not(.nav-ind){animation:slidein .5s var(--ease) both;animation-delay:calc(var(--n,0)*40ms)}
+body.intro .foot{animation:rise .5s var(--ease) .25s both}
+:root{--glow:0 0 0 1px color-mix(in srgb,var(--ac) 22%,transparent),0 12px 30px rgba(0,0,0,.4),0 0 28px color-mix(in srgb,var(--ac) 8%,transparent)}
+button{transition:background-color .18s var(--ease),border-color .18s var(--ease),color .18s,transform .16s var(--ease),box-shadow .2s var(--ease)}
+button:hover{transform:translateY(-1px);box-shadow:0 5px 16px rgba(0,0,0,.32)}
+button:active{transform:scale(.96);box-shadow:none}
+.menu .nv:hover,.code-h:hover,.wc button:hover,.nitem:hover,.rl:hover,.chip:hover{transform:none;box-shadow:none}
+.menu .nv:active,.code-h:active,.wc button:active{transform:none}
+button.pri:hover{box-shadow:0 6px 20px color-mix(in srgb,var(--ac) 30%,transparent)}
+.ncard:hover,.code:hover,.hero:hover,.promo:hover{box-shadow:var(--glow)}
+.ncard,.code,.hero,.promo{transition:box-shadow .25s var(--ease),border-color .2s var(--ease),transform .2s var(--ease),background-color .2s}
+.code:hover{transform:none}
+.ncard{cursor:pointer;contain:layout paint}
+.ncard:active{transform:scale(.99)}
+@keyframes breathe{0%,100%{box-shadow:0 0 0 0 rgba(106,160,131,.55);opacity:1}50%{box-shadow:0 0 0 .45em rgba(106,160,131,0);opacity:.7}}
+.dot:not(.off),.gd[data-s=run]{animation:breathe 2.8s ease-in-out infinite}
+.modal{background:rgba(4,6,9,.5);-webkit-backdrop-filter:blur(9px) saturate(115%);backdrop-filter:blur(9px) saturate(115%)}
+.modal .card{background:color-mix(in srgb,var(--l2) 88%,transparent)}
+.toast{-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);background:color-mix(in srgb,var(--l3) 85%,transparent)}
+.fab-b{-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.ntags{display:flex;gap:.35em;flex-wrap:wrap}.ncard .ntags{margin-bottom:.1em}
+.ncard .more{margin-top:.35em;color:var(--ac);font-size:.85em}
+.ncont{white-space:pre-wrap;line-height:1.7;margin-top:.9em}
+.item{cursor:pointer}
+.krow{display:grid;grid-template-columns:1fr auto auto;gap:.5em;align-items:center;padding:.55em 0;border-top:1px solid var(--b1)}
+.krow .kn{min-width:0}.krow .kn small{display:block;color:var(--mut);font-size:.8em}
+.kc{font:600 .9em Consolas,monospace;background:var(--bg);border:1px solid var(--b2);padding:.28em .8em;border-radius:var(--r2);min-width:8em;text-align:center}
+.kc.empty{color:var(--mut);font-weight:400;font-family:inherit}
+.kc.listen{border-color:var(--ac);color:var(--ac);animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.55}}
+.kb{display:flex;gap:.35em}.kb button{padding:.28em .7em;font-size:.88em}
+.code-box{font-family:Consolas,monospace;font-size:.82em;word-break:break-all;min-height:5em;margin-top:.3em}
+.donate{display:inline-flex;align-items:center;gap:.45em;justify-self:end;padding:.25em .95em;font-size:.95em;border-radius:999px;color:var(--ac);background:color-mix(in srgb,var(--ac) 9%,transparent);border-color:color-mix(in srgb,var(--ac) 45%,transparent)}
+.donate svg{width:1em;height:1em}.donate:hover{background:var(--ac);color:var(--acx);border-color:var(--ac)}
+.art{content-visibility:auto;contain-intrinsic-size:auto 4.6em}
+body.idle *,body.idle *::before,body.idle *::after{animation-play-state:paused!important}
+/* мінімалістичний оверлей */
+body.ov{--ac:#b9c0c9;--acx:#101215;--b1:rgba(255,255,255,.035);--b2:rgba(255,255,255,.065);--b3:rgba(255,255,255,.12)}
+body.ov main{font-size:.93em}
+body.ov .win{border-color:var(--b1)}
+body.ov svg{stroke-width:1.5}
+body.ov .card,body.ov .code,body.ov .tot div{box-shadow:none}
+body.ov .code:hover,body.ov .ncard:hover{box-shadow:none}
+body.ov button,body.ov button:hover{box-shadow:none!important}
+body.ov button:hover{transform:none}
+body.ov .badge{background:none!important;border-color:var(--b3)!important;color:var(--mut)!important}
+body.ov .art.sel{background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1px var(--b3)}
+body.ov .num{color:var(--tx)}
+body.ov .ovbar{border:0;margin-bottom:.4em;padding:0;min-height:1.9em}
+body.ov .ovtabs button{background:none;border-color:transparent;color:var(--mut);padding:.2em .6em;font-size:.88em}
+body.ov .ovtabs button.on{color:var(--tx);border-color:var(--b2);background:rgba(255,255,255,.04)}
+.ovdock{display:none;align-items:center;gap:.3em;margin-left:auto;padding:.15em .35em;border-radius:999px;border:1px solid var(--b1);background:color-mix(in srgb,var(--l1) 70%,transparent);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);opacity:.2;transition:opacity .3s ease}
+body.ov .ovdock{display:flex}
+body.ov .ovbar:hover .ovdock,body.ov .ovdock:hover,body.ov .ovdock:focus-within{opacity:1}
+.ovdock .ico{border:0;background:none;color:var(--mut);padding:.28em .4em;border-radius:50%}
+.ovdock .ico:hover{color:var(--tx);background:rgba(255,255,255,.06)}
+.ovdock .ico.on{color:var(--tx);background:rgba(255,255,255,.1)}
+.ovdock input[type=range]{width:4.6em;height:.9em;accent-color:#9aa3ad}
+body.ov .foot{font-size:.72em;opacity:.8}
+body.ov .toolbar{margin:.1em 0 .5em}
+body.ov .art{padding:.42em .6em}
+@media(prefers-reduced-motion:reduce){.tab.stg>*,body.intro nav>*,.dot,.gd{animation:none!important}.nav-ind.ready{transition:none}}
