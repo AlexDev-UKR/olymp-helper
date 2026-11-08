@@ -315,24 +315,12 @@ function tab(t){
 }
 document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>tab(b.dataset.t));
 
-function overlay(on){
-  if(TAURI){invoke("toggle_overlay");return}
-  document.body.classList.toggle("ov",on);if(on)tab("laws");else tab("hub");
+function overlay(){if(TAURI)invoke("toggle_overlay")} // сховати / показати Spotlight Bar
+function launch(){ // оверлей запускається одразу як Spotlight Bar, без вибору режиму
+  if(TAURI){invoke("show_overlay");return}
+  toast("Оверлей доступний у застосунку Olymp Helper");
 }
-$("ovClose").onclick=()=>overlay(false);
-function launch(m){
-  if(TAURI){invoke("show_overlay",{mode:m});return}
-  document.body.classList.toggle("framed",m==="window");overlay(true);toast("Оверлей активний. Виклик: "+keyLabel(KEYS.toggle));
-}
-const modal=$("modal"),closeModal=()=>modal.classList.add("hide");
-$("runOv").onclick=()=>{if(G.ov&&TAURI){invoke("stop_overlay");return}const p=store.get("gov.lm")||"ask";if(p==="ask"){modal.classList.remove("hide");modal.querySelector("[data-m]").focus()}else launch(p)};
-modal.addEventListener("click",e=>{
-  if(e.target===modal||e.target.id==="mcancel")return closeModal();
-  const b=e.target.closest("[data-m]");if(!b)return;
-  if($("rem").checked){store.set("gov.lm",b.dataset.m);$("lm").value=b.dataset.m}
-  closeModal();launch(b.dataset.m);
-});
-$("lm").onchange=()=>{const v=$("lm").value;store.set("gov.lm",v);if(TAURI&&v!=="ask")invoke("set_overlay_mode",{mode:v})};
+$("runOv").onclick=()=>{if(G.ov&&TAURI){invoke("stop_overlay");return}launch()};
 
 // ---- налаштування ----
 // ---- менеджер гарячих клавіш ----
@@ -363,7 +351,7 @@ function pushKeys(){
 }
 function renderKeys(){
   $("keys").innerHTML=KEYS_DEF.map(d=>`<div class="krow"><div class="kn">${esc(d.n)}<small>${esc(d.h)}</small></div><span class="kc ${listening===d.id?"listen":KEYS[d.id]?"":"empty"}">${listening===d.id?"Натисніть клавішу…":esc(keyLabel(KEYS[d.id]))}</span><div class="kb"><button data-kb="${d.id}">${listening===d.id?"Скасувати":"Змінити"}</button><button data-kc="${d.id}" ${KEYS[d.id]?"":"disabled"}>Очистити</button><button data-kr="${d.id}" ${KEYS[d.id]===d.d?"disabled":""}>Скинути</button></div></div>`).join("");
-  $("hk1").textContent=KEYS.toggle||"";$("clickKey").textContent=keyLabel(KEYS.click);
+  $("clickKey").textContent=keyLabel(KEYS.click);
 }
 function saveKeys(){store.set("gov.keys",JSON.stringify(KEYS));renderKeys();pushKeys();renderOvTools()}
 function loadKeys(){
@@ -389,12 +377,11 @@ document.addEventListener("keydown",e=>{
     const c=combo(e);if(!c){toast("Ця клавіша не підтримується");return}
     setKey(listening,c);return;
   }
-  if(KEYS.search&&combo(e)===KEYS.search){e.preventDefault();tab("laws");$("q").focus();$("q").select();return}
-  if(!TAURI&&KEYS.toggle&&combo(e)===KEYS.toggle){e.preventDefault();overlay(!document.body.classList.contains("ov"))}
+  if(KEYS.search&&combo(e)===KEYS.search){e.preventDefault();if(document.body.classList.contains("ov")){$("sq").focus();$("sq").select()}else{tab("laws");$("q").focus();$("q").select()}return}
   if(e.key==="Escape"){
     const m=[...document.querySelectorAll(".modal:not(.hide)")].pop();
     if(m){m.classList.add("hide");if(m.id==="themeModal")pickTheme();return}
-    if(document.body.classList.contains("ov"))overlay(false);
+    if(document.body.classList.contains("ov")){if(spotEsc())return;overlay()}
   }
 });
 $("op").oninput=e=>{$("opv").textContent=e.target.value;document.documentElement.style.setProperty("--ov",e.target.value/100);setLater("gov.op",e.target.value)};
@@ -654,7 +641,6 @@ async function bootTauri(){
   ev.listen("overlay-click",e=>{CLICK=!!e.payload;renderOvTools()});
   ev.listen("win-flush",e=>document.body.classList.toggle("maxd",!!e.payload));
   ev.listen("overlay-lock",e=>setLockUi(!!e.payload));
-  ev.listen("overlay-mode",e=>document.body.classList.toggle("framed",e.payload==="window"));
   ev.listen("update-progress",e=>{const{got,total}=e.payload,pc=total?got/total*100:0;$("prog").value=pc;bp(22+pc*.7)});
   let rl=0;ev.listen("vault-changed",e=>{
     const{key,value,src}=e.payload;if(src===(OVERLAY?"overlay":"main"))return;
@@ -668,29 +654,23 @@ async function bootTauri(){
 
 // ---- оверлей: міні-панель (замок, наскрізний режим, прозорість), розумна прозорість ----
 let ovLocked=false,CLICK=false;
-const IC_LOCK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
-const IC_OPEN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.4-2"/></svg>';
-const IC_CUR='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 7-6 2-2 6z"/></svg>';
 function renderOvTools(){
-  const l=$("ovLock"),c=$("ovClick");
-  l.innerHTML=ovLocked?IC_LOCK:IC_OPEN;l.classList.toggle("on",ovLocked);
-  l.title=ovLocked?"Позицію й розмір заблоковано. Натисніть, щоб розблокувати":"Заблокувати позицію й розмір";
-  c.innerHTML=IC_CUR;c.classList.toggle("on",CLICK);
-  c.title=CLICK?"Наскрізний режим увімкнено"+(KEYS.click?" ("+KEYS.click+" вимикає)":""):"Наскрізний режим: кліки проходять у гру";
-  $("ovbar").toggleAttribute("data-tauri-drag-region",!ovLocked); // заблоковано: перетягування вимкнено
+  for(const el of[$("spotBar"),$("spotBy"),document.querySelector(".spbrand")])if(el)el.toggleAttribute("data-tauri-drag-region",!ovLocked); // заблоковано: перетягування вимкнено
+  document.body.classList.toggle("ct",CLICK);
+  if(SP&&SP.menu)spotRender();
 }
 function setLockUi(v){ovLocked=v;MEM["gov.ovlock"]=v?"1":"0";renderOvTools()}
-$("ovLock").onclick=()=>{
+function toggleLock(){
   const v=!ovLocked;setLockUi(v);
-  if(TAURI)invoke("set_overlay_lock",{locked:v}); // Rust вимикає зміну розміру, зберігає стан і повідомляє всі вікна
+  if(TAURI)invoke("set_overlay_lock",{locked:v}); // Rust зберігає стан і повідомляє всі вікна
   toast(v?"Позицію заблоковано":"Позицію розблоковано");
-};
-$("ovClick").onclick=()=>{
+}
+function toggleClick(){
   if(!TAURI)return;
   invoke("set_click_through",{on:!CLICK});
   if(!CLICK)toast(KEYS.click?"Наскрізний режим: вимкнути можна клавішею "+KEYS.click:"Наскрізний режим увімкнено. Вимкнути можна в треї");
-};
-$("ovOp").oninput=e=>{$("op").value=e.target.value;$("op").oninput({target:$("op")})};
+}
+function setOverlayOpacity(v){$("op").value=v;$("op").oninput({target:$("op")})}
 if(OVERLAY){
   addEventListener("blur",()=>document.body.classList.add("inactive"));
   addEventListener("focus",()=>document.body.classList.remove("inactive"));
@@ -703,7 +683,7 @@ $("smart").onchange=e=>store.set("gov.smart",e.target.checked?"1":"0");
 $("bgop").oninput=e=>{$("bgopv").textContent=e.target.value;setLater("gov.bgop",e.target.value)};
 
 // ---- профілі налаштувань: експорт / імпорт текстовим кодом ----
-const P_KEYS=["theme","themes","op","bgop","smart","ontop","ovgeo","ovlock","keys","fz","lm","frame","close"];
+const P_KEYS=["theme","themes","op","bgop","smart","ontop","ovpos","ovlock","keys","fz","frame","close"];
 const b64e=u8=>{let s="";u8.forEach(b=>s+=String.fromCharCode(b));return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")};
 const b64d=s=>{s=s.replace(/-/g,"+").replace(/_/g,"/");while(s.length%4)s+="=";return Uint8Array.from(atob(s),c=>c.charCodeAt(0))};
 const pipeBytes=async(u8,S)=>new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new S("deflate-raw"))).arrayBuffer());
@@ -738,10 +718,9 @@ function sanitize(o){ // код від іншої людини вважаєть�
   if("bgop" in o){if(!isInt(o.bgop,20,100))bad("Невірна прозорість у фоні");r.bgop=String(o.bgop)}
   if("fz" in o){if(!isInt(o.fz,80,150))bad("Невірний розмір шрифту");r.fz=String(o.fz)}
   for(const k of["smart","ontop","ovlock"])if(k in o){if(!["0","1"].includes(String(o[k])))bad("Невірний параметр");r[k]=String(o[k])}
-  if("lm" in o){if(!["ask","overlay","window"].includes(o.lm))bad("Невірний режим запуску");r.lm=o.lm}
   if("frame" in o){if(!["custom","system"].includes(o.frame))bad("Невірна рамка вікна");r.frame=o.frame}
   if("close" in o){if(!["tray","exit"].includes(o.close))bad("Невірна поведінка закриття");r.close=o.close}
-  if("ovgeo" in o){const g=parse(o.ovgeo);if(!g||!isInt(g.x,-20000,20000)||!isInt(g.y,-20000,20000)||!isInt(g.w,200,10000)||!isInt(g.h,200,10000))bad("Невірне положення оверлею");r.ovgeo=JSON.stringify({x:+g.x,y:+g.y,w:+g.w,h:+g.h})}
+  if("ovpos" in o){const g=parse(o.ovpos);if(!g||!isInt(g.x,-20000,20000)||!isInt(g.y,-20000,20000))bad("Невірне положення оверлею");r.ovpos=JSON.stringify({x:+g.x,y:+g.y})}
   if("keys" in o){
     const k=parse(o.keys);if(!k||typeof k!=="object")bad("Невірні бінди");const out={};
     for(const d of KEYS_DEF)if(d.id in k){if(typeof k[d.id]!=="string"||!KEYRE.test(k[d.id]))bad("Невірний бінд");out[d.id]=k[d.id]}
@@ -754,7 +733,7 @@ async function importPreset(code){
   const r=sanitize(await decodePreset(code));
   for(const k in r)store.set("gov."+k,r[k]);
   syncUi();pushState();
-  if(TAURI&&"ovgeo" in r||"ovlock" in r)setTimeout(()=>{if(TAURI)invoke("apply_overlay_state")},500);
+  if(TAURI&&("ovpos" in r||"ovlock" in r))setTimeout(()=>{if(TAURI)invoke("apply_overlay_state")},500);
   return Object.keys(r).length;
 }
 $("presetExport").onclick=async()=>{const c=await exportPreset();$("presetCode").value=c;$("presetMsg").textContent="Код створено й скопійовано";copy(c)};
@@ -762,6 +741,152 @@ $("presetImport").onclick=async()=>{
   try{const n=await importPreset($("presetCode").value);$("presetMsg").textContent="Застосовано параметрів: "+n;toast("Профіль імпортовано")}
   catch(e){$("presetMsg").textContent=e.message||"Не вдалося імпортувати"}
 };
+
+// ---- Spotlight Bar: оверлей у стилі Dynamic Island ----
+let SP=null,HIST=[];
+const spChip=x=>`<span class="xchip">${esc(x)}</span>`;
+const xBlock=a=>{const xs=xlist(a);return xs.length?`<div class="xline"><b>Додатково</b>${xs.map(spChip).join("")}</div>`:""};
+function spotFit(){ // вікно має висоту вмісту: мінімальне перекриття екрана під час гри
+  if(!TAURI||!OVERLAY||!SP)return;
+  const h=Math.ceil($("spotWrap").getBoundingClientRect().height);
+  if(h<20||Math.abs(h-SP.h)<2)return;
+  SP.h=h;invoke("spot_resize",{h}).catch(()=>{});
+}
+function lawsFound(q){
+  const n=norm(q),ts=n.split(/\s+/).filter(Boolean);if(!ts.length)return[];
+  const map=new Map(all().map(a=>[a.id,a])),rank=a=>{const num=norm(a.number);return num===n||num.startsWith(n)?0:norm(a.title).includes(n)?1:2};
+  return IDX.filter(x=>ts.every(t=>x.h.includes(t))).map(x=>map.get(x.id)).filter(Boolean).sort((a,b)=>rank(a)-rank(b)).slice(0,30);
+}
+function faqFound(q){const ts=norm(q).split(/\s+/).filter(Boolean);return ts.length?FIDX.filter(x=>ts.every(t=>x.h.includes(t))).map(x=>FAQ.find(i=>i.id===x.id)).filter(Boolean).slice(0,20):[]}
+function notesFound(q){const ts=norm(q).split(/\s+/).filter(Boolean);return nsort().filter(n=>ts.every(t=>norm(n.text).includes(t))).slice(0,20)}
+function lawSummary(a){
+  const xs=xlist(a),p=[`Штраф: ${a.fine?fmt(a.fine):"—"}`,`КПЗ: ${a.jail_minutes?a.jail_minutes+" хв":"—"}`,`Розшук: ${"★".repeat(a.wanted_level)||"—"}`];
+  if(a.jail_minutes>0)p.push("Застава: "+(a.bail?fmt(a.bail):"немає"));
+  return`${a.code} — Ст. ${a.number}. ${a.title}\n`+p.join("; ")+(xs.length?"\nДодатково: "+xs.join("; "):"");
+}
+const kv=(k,v)=>`<div class="kv"><span>${k}:</span><b>${v}</b></div>`;
+const lawCard=(a,i)=>`<div class="rcard ${i===SP.act?"act":""}" data-i="${i}"><div class="rt"><b>${esc(a.code)} — Стаття ${esc(a.number)}</b><span>${esc(a.title)}</span></div>${kv("Штраф",a.fine?fmt(a.fine):"—")}${kv("КПЗ",a.jail_minutes?a.jail_minutes+" хв":"—")}${kv("Розшук","★".repeat(a.wanted_level)||"—")}${a.jail_minutes>0?kv("Застава",a.bail?fmt(a.bail):"немає"):""}${xBlock(a)}<div class="ract"><button class="spb" data-act="copy">Скопіювати підсумок</button><span class="okmark">✓ Скопійовано!</span><button class="spb ghost" data-act="add">${sel.has(a.id)?"✓ У калькуляторі":"+ У калькулятор"}</button></div></div>`;
+const faqCard=(f,i)=>`<div class="rcard ${i===SP.act?"act":""}" data-i="${i}"><div class="rt"><b>${esc(f.question)}</b><span>${esc(f.category)}</span></div><div class="spans" data-act="expand">${esc(f.answer)}</div><div class="ract"><button class="spb" data-act="copy">Скопіювати відповідь</button><span class="okmark">✓ Скопійовано!</span></div></div>`;
+const noteCard=(n,i)=>`<div class="rcard ${i===SP.act?"act":""}" data-i="${i}"><div class="rt"><b>${esc(ntitle(n))}</b><span>${new Date(n.updated).toLocaleDateString("uk-UA")}</span></div><div class="spans" data-act="expand">${esc(n.text)}</div><div class="ract"><button class="spb" data-act="copy">Скопіювати текст</button><span class="okmark">✓ Скопійовано!</span></div></div>`;
+const MODES={laws:"Закони",faq:"FAQ",notes:"Нотатки",calc:"Калькулятор"};
+function noRes(q){
+  const o=[["laws",lawsFound(q).length],["faq",faqFound(q).length],["notes",notesFound(q).length]].filter(([m,n])=>m!==SP.mode&&n>0);
+  return`<div class="sphint">Нічого не знайдено у «${MODES[SP.mode]}».${o.map(([m,n])=>`<button class="spb ghost" data-gt="${m}">${MODES[m]} ${n}</button>`).join("")}</div>`;
+}
+function calcHtml(q){
+  const p=picked();let h="";
+  if(p.length){
+    calc();
+    h+=`<div class="spchips">${p.map(a=>`<span class="spchip">${esc(a.code)} ${esc(a.number)}<button data-rm="${esc(a.id)}" aria-label="Прибрати статтю">×</button></span>`).join("")}</div>`;
+    h+=`<div class="sptot"><div><span>Штраф</span><b>${esc($("tf").textContent)}</b></div><div><span>КПЗ</span><b>${esc($("tj").textContent)}</b></div><div><span>Розшук</span><b>${esc($("tw").textContent)}</b></div><div><span>Застава</span><b>${esc($("tb").textContent)}</b></div></div>`;
+    if(XS.length)h+=`<div class="xline"><b>Додатково</b>${XS.map(spChip).join("")}</div>`;
+    if($("jnote").textContent)h+=`<div class="sphint">${esc($("jnote").textContent)}</div>`;
+    h+=`<div class="ract"><button class="spb" data-act="copysum">Скопіювати підсумок</button><span class="okmark">✓ Скопійовано!</span><button class="spb ghost" data-act="clear">Скинути</button></div>`;
+  }else if(!q)h+=`<div class="sphint">Додайте статті кнопкою «+ У калькулятор» у вкладці «Закони» або знайдіть їх тут.</div>`;
+  if(q){
+    SP.items=lawsFound(q).slice(0,8);
+    h+=SP.items.map((a,i)=>`<div class="rcard ${i===SP.act?"act":""}" data-i="${i}"><div class="rt"><b>${esc(a.code)} — Стаття ${esc(a.number)}</b><span>${esc(a.title)}</span></div><div class="ract"><button class="spb" data-act="add">${sel.has(a.id)?"✓ Додано":"+ Додати"}</button></div></div>`).join("")||`<div class="sphint">Нічого не знайдено.</div>`;
+  }
+  return h;
+}
+const spRow=(l,x)=>`<div class="spm"><span>${l}</span>${x}</div>`;
+const spTg=(k,on)=>`<button class="tg ${on?"on":""}" data-m="${k}" role="switch" aria-checked="${on}" aria-label="${k}"></button>`;
+function menuHtml(){
+  return spRow("Замок позиції",spTg("lock",ovLocked))+spRow("Наскрізний режим",spTg("click",CLICK))+spRow("Завжди поверх",spTg("top",$("ontop").checked))+spRow("Компактний режим",spTg("compact",SP.compact))
+    +spRow("Прозорість",`<input type="range" min="30" max="100" value="${esc($("op").value)}" data-m="op" aria-label="Прозорість">`)
+    +`<div class="spm2"><button class="spb" data-m="hide">Сховати (${esc(KEYS.toggle||"—")})</button><button class="spb danger" data-m="stop">Вимкнути оверлей</button></div>`;
+}
+function histHtml(){
+  return HIST.length?HIST.map(h=>`<button class="sphist" data-h="${esc(h)}"><span>${esc(h)}</span></button>`).join("")+`<div class="ract"><button class="spb ghost" data-act="hclear">Очистити історію</button></div>`:'<div class="sphint">Історія пошуку порожня.</div>';
+}
+function spotRender(){
+  const q=$("sq").value.trim();let html="";SP.items=[];
+  if(SP.menu)html=menuHtml();
+  else if(SP.hist)html=histHtml();
+  else if(SP.mode==="laws"){if(q){SP.items=lawsFound(q);html=SP.items.length?SP.items.map(lawCard).join(""):noRes(q)}}
+  else if(SP.mode==="faq"){if(q){SP.items=faqFound(q);html=SP.items.length?SP.items.map(faqCard).join(""):noRes(q)}}
+  else if(SP.mode==="notes"){
+    SP.items=q?notesFound(q):nsort().slice(0,5);
+    html=SP.items.length?SP.items.map(noteCard).join(""):(q?noRes(q):'<div class="sphint">Нотаток поки немає. Створіть їх у лаунчері.</div>');
+  }else html=calcHtml(q);
+  $("spBody").innerHTML=html;$("spPanel").classList.toggle("open",!!html);
+}
+function pushHist(q){
+  q=String(q||"").trim();if(q.length<2)return;
+  HIST=[q,...HIST.filter(x=>x!==q)].slice(0,8);store.set("gov.shist",JSON.stringify(HIST));
+}
+async function spotCopy(btn,text){
+  try{await navigator.clipboard.writeText(text)}catch(e){toast("Не вдалося скопіювати");return}
+  const mark=btn.parentElement&&btn.parentElement.querySelector(".okmark");
+  if(mark){mark.classList.add("show");clearTimeout(mark._t);mark._t=setTimeout(()=>mark.classList.remove("show"),1600)}
+}
+function spotClick(e){
+  const m=e.target.closest("[data-m]");
+  if(m&&m.tagName==="BUTTON"){
+    const k=m.dataset.m;
+    if(k==="lock")toggleLock();
+    else if(k==="click")toggleClick();
+    else if(k==="top"){$("ontop").checked=!$("ontop").checked;$("ontop").dispatchEvent(new Event("change"));spotRender()}
+    else if(k==="compact"){SP.compact=!SP.compact;$("spot").classList.toggle("compact",SP.compact);store.set("gov.spotc",SP.compact?"1":"0");spotRender()}
+    else if(k==="hide"){SP.menu=false;spotRender();overlay()}
+    else if(k==="stop"){if(TAURI)invoke("stop_overlay")}
+    return;
+  }
+  const gt=e.target.closest("[data-gt]");
+  if(gt){SP.mode=gt.dataset.gt;$("spTabs").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.sp===SP.mode));spotRender();return}
+  const hh=e.target.closest("[data-h]");
+  if(hh){$("sq").value=hh.dataset.h;SP.hist=false;spotRender();$("sq").focus();return}
+  const rm=e.target.closest("[data-rm]");
+  if(rm){sel.delete(rm.dataset.rm);calc();spotRender();return}
+  const a=e.target.closest("[data-act]");if(!a)return;
+  const card=a.closest(".rcard"),it=card?SP.items[+card.dataset.i]:null,act=a.dataset.act;
+  if(act==="expand"){a.classList.toggle("full");return}
+  if(act==="hclear"){HIST=[];store.set("gov.shist","[]");spotRender();return}
+  if(act==="clear"){sel.clear();calc();spotRender();return}
+  if(act==="copysum"){spotCopy(a,sumText());return}
+  if(act==="add"&&it){sel.has(it.id)?sel.delete(it.id):sel.add(it.id);calc();spotRender();return}
+  if(act==="copy"&&it){
+    spotCopy(a,SP.mode==="laws"?lawSummary(it):SP.mode==="faq"?it.answer:it.text);
+    pushHist($("sq").value);
+  }
+}
+function spotKey(e){
+  const n=SP.items.length;
+  if((e.key==="ArrowDown"||e.key==="ArrowUp")&&n&&!SP.menu&&!SP.hist){
+    e.preventDefault();SP.act=(SP.act+(e.key==="ArrowDown"?1:-1)+n)%n;
+    $("spBody").querySelectorAll(".rcard").forEach((c,i)=>c.classList.toggle("act",i===SP.act));
+    const c=$("spBody").querySelectorAll(".rcard")[SP.act];if(c&&c.scrollIntoView)c.scrollIntoView({block:"nearest"});
+  }else if(e.key==="Enter"){
+    e.preventDefault();pushHist($("sq").value);
+    const c=$("spBody").querySelectorAll(".rcard")[SP.act];
+    const b=c&&c.querySelector('[data-act="copy"],[data-act="add"]');if(b)b.click();
+  }
+}
+function spotEsc(){ // Esc: спершу закриває меню/історію, потім очищає пошук, потім ховає оверлей
+  if(!SP)return false;
+  if(SP.menu||SP.hist){SP.menu=SP.hist=false;spotRender();return true}
+  if($("sq").value){$("sq").value="";SP.act=0;spotRender();return true}
+  return false;
+}
+function spotInit(){
+  HIST=(()=>{const h=parse(store.get("gov.shist"));return Array.isArray(h)?h.map(String).slice(0,8):[]})();
+  SP={mode:"laws",hist:false,menu:false,act:0,items:[],h:0,r:0,t:0,compact:store.get("gov.spotc")==="1"};
+  $("spot").classList.toggle("compact",SP.compact);
+  $("sq").addEventListener("input",()=>{SP.hist=SP.menu=false;SP.act=0;spotRender();clearTimeout(SP.t);SP.t=setTimeout(()=>pushHist($("sq").value),1500)});
+  $("sq").addEventListener("keydown",spotKey);
+  $("spTabs").addEventListener("click",e=>{
+    const b=e.target.closest("[data-sp]");if(!b)return;
+    SP.mode=b.dataset.sp;SP.hist=SP.menu=false;SP.act=0;
+    $("spTabs").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));spotRender();$("sq").focus();
+  });
+  $("spHist").onclick=()=>{SP.hist=!SP.hist;SP.menu=false;spotRender()};
+  $("spGear").onclick=()=>{SP.menu=!SP.menu;SP.hist=false;spotRender()};
+  $("spBody").addEventListener("click",spotClick);
+  $("spBody").addEventListener("input",e=>{const r=e.target.closest('[data-m="op"]');if(r)setOverlayOpacity(r.value)});
+  addEventListener("focus",()=>$("sq").focus());
+  if(typeof ResizeObserver!=="undefined")new ResizeObserver(()=>{cancelAnimationFrame(SP.r);SP.r=requestAnimationFrame(spotFit)}).observe($("spotWrap"));
+  spotRender();renderOvTools();spotFit();
+}
 
 // ---- завантажувач (bootstrapper): прогрес показує окреме вікно splash ----
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -781,7 +906,7 @@ function syncUi(){
   document.querySelectorAll("[data-tg]").forEach(e=>e.dataset.u=TG_URL);
   if(!TAURI)document.body.classList.add("web");
   loadKeys();
-  const o=store.get("gov.op");if(o){$("op").value=o;$("ovOp").value=o;$("op").oninput({target:$("op")})}
+  const o=store.get("gov.op");if(o){$("op").value=o;$("op").oninput({target:$("op")})}
   const f=store.get("gov.fz");if(f){$("fz").value=f;$("fz").oninput({target:$("fz")})}
   loadThemes();pickTheme();
   G.exe=store.get("gov.exe")||"";$("exe").value=G.exe;
@@ -790,7 +915,6 @@ function syncUi(){
   $("closeb").value=store.get("gov.close")||"tray";
   $("auto").checked=store.get("gov.auto")==="1";
   $("autoupd").checked=store.get("gov.autoupd")!=="0";
-  $("lm").value=store.get("gov.lm")||"ask";
   $("ontop").checked=store.get("gov.ontop")!=="0";
   $("smart").checked=store.get("gov.smart")!=="0";
   const bo=+(store.get("gov.bgop")||55);$("bgop").value=bo;$("bgopv").textContent=bo;
@@ -800,7 +924,7 @@ function syncUi(){
 }
 function initUi(){
   syncUi();applyLinks(null);
-  if(OVERLAY){document.body.classList.add("ov");tab("laws")}
+  if(OVERLAY)document.body.classList.add("ov");
   else{addEventListener("online",()=>loadAll(false));addEventListener("resize",moveInd);requestAnimationFrame(moveInd)}
   addEventListener("offline",()=>setNet(false));
 }
@@ -809,7 +933,6 @@ function pushState(){ // передає налаштування у Rust
   invoke("set_auto_overlay",{enabled:$("autoov").checked});
   invoke("set_overlay_ontop",{on:$("ontop").checked});
   invoke("set_close_mode",{tray:$("closeb").value==="tray"});
-  const lm=$("lm").value;if(lm!=="ask")invoke("set_overlay_mode",{mode:lm});
   if(!OVERLAY){pushKeys();applyFrame($("frame").value==="custom")}
 }
 $("autoupd").onchange=e=>store.set("gov.autoupd",e.target.checked?"1":"0");
@@ -820,7 +943,7 @@ async function main(){
   const restored=await preload();RESTORED=restored.length>0;
   initUi();
   if(TAURI)await bootTauri();
-  if(OVERLAY){loadNotes();loadFromStore();return}
+  if(OVERLAY){loadNotes();loadFromStore();spotInit();return}
   loadNotes();
   let slow=0;setInterval(()=>{if(document.hidden)return;if(!$("hub").classList.contains("hide")||++slow%5===0)refreshNews()},60000);addEventListener("focus",()=>refreshNews());
   if(RESTORED)bp(20,"Виявлено пошкоджені локальні файли. Відновлюємо…");

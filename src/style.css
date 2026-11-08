@@ -141,25 +141,7 @@ main{min-height:0;overflow-y:auto;padding:1.3em 1.7em 1.5em}
 .modal:not(.hide){animation:fade .15s ease both}.modal:not(.hide) .card{animation:pop .2s var(--ease) both}
 @keyframes fade{from{opacity:0}}@keyframes pop{from{opacity:0;transform:scale(.97)}}
 /* оверлей: компактний режим */
-.ovbar{display:none;justify-content:space-between;align-items:center;gap:.5em;flex-wrap:wrap;margin-bottom:.7em;padding-bottom:.6em;border-bottom:1px solid var(--b1)}
-.ovtabs{display:none;gap:.3em}.ovtabs button{padding:.3em .75em;font-size:.92em}.ovtabs button.on{border-color:color-mix(in srgb,var(--ac) 60%,transparent);background:var(--l3)}
-body.ov .titlebar,body.ov nav,body.ov .only-launcher{display:none}
-body.ov .win{background:rgba(var(--bgrgb),var(--ov));border-radius:10px}
-body.ov.framed .win{background:var(--bg);border-radius:0;border:0}
-body.ov .app{display:block}body.ov main{height:100%;padding:.7em .8em}
-body.ov.framed .ovbar b::after{content:" (окреме вікно)";color:var(--mut);font-weight:400}
-body.ov .ovbar,body.ov .ovtabs{display:flex}
-body.ov .split{grid-template-columns:1fr}body.ov .calc{position:static}
-body.ov .toolbar{margin:.2em 0 .6em}
-body.ov .code{margin-bottom:.4em;border-radius:var(--r2)}body.ov .code-h{padding:.5em .75em}
-body.ov .art{grid-template-columns:1.2em 2.8em 1fr;gap:.6em;padding:.5em .75em}
-body.ov .body p{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:.85em}
-body.ov .tag{margin-top:.35em}
-body.ov .facts{grid-column:3;grid-template-columns:repeat(4,auto);justify-content:start;gap:.2em 1em;font-size:.84em}
-body.ov .ans{padding:.5em .75em .4em}body.ov .qa-foot{padding:0 .75em .7em}
-body.ov .notes{grid-template-columns:1fr}body.ov #ntext{height:12em;min-height:8em}
-body.ov .card{padding:.8em .9em}body.ov .tot{margin:.6em 0 .4em}
-body.ov .foot{font-size:.76em;gap:.6em;padding:.3em .6em}
+
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
 /* ===== v1.2.4: фіксовані слоти зображень ===== */
@@ -204,7 +186,7 @@ body.ov .foot{font-size:.76em;gap:.6em;padding:.3em .6em}
 .rz[data-d=SouthEast]{bottom:0;right:0;width:12px;height:12px;cursor:nwse-resize}
 .rz[data-d=NorthEast]{top:0;right:0;width:12px;height:12px;cursor:nesw-resize}
 .rz[data-d=SouthWest]{bottom:0;left:0;width:12px;height:12px;cursor:nesw-resize}
-body.sysframe .rz,body.maxd .rz,body.ov .rz,body.pre .rz,body.web .rz{display:none}
+
 @media(max-width:900px){.hero{grid-template-columns:auto 1fr}.res{grid-column:1/-1}.ngrid{grid-template-columns:1fr}}
 
 /* захист: без виділення службових елементів, без перетягування зображень, без друку */
@@ -256,13 +238,10 @@ main{padding:1.4em 1.8em 4.4em}
 .fab-b{width:2.7em;height:2.7em;border-radius:50%;padding:0;display:grid;place-items:center;background:var(--l3);border:1px solid var(--b2);box-shadow:0 6px 16px rgba(0,0,0,.45);font-weight:700;color:var(--tx)}
 .fab-b:hover{background:var(--ac);color:var(--acx);border-color:var(--ac);transform:translateY(-2px)}
 .fab-b svg{width:1.15em;height:1.15em}
-body.ov .fab,body.pre .fab{display:none}
+
 /* інструменти оверлею: замок, наскрізний режим, розумна прозорість */
 .ovtools{display:flex;gap:.35em;align-items:center}
-.ico{padding:.3em .5em;display:grid;place-items:center}.ico svg{width:1.1em;height:1.1em}
-.ico.on{color:var(--ac);border-color:color-mix(in srgb,var(--ac) 55%,transparent);background:color-mix(in srgb,var(--ac) 12%,transparent)}
-body.ov.smart.inactive .win{opacity:var(--bgop)}
-body.ov.smart.inactive .win:hover{opacity:1}
+
 /* копіювання статей */
 .dh{display:flex;align-items:baseline;gap:.5em}.dh .cp{margin-left:auto;padding:.15em .7em;font-size:.82em}
 
@@ -315,30 +294,7 @@ button.pri:hover{box-shadow:0 6px 20px color-mix(in srgb,var(--ac) 30%,transpare
 .art{content-visibility:auto;contain-intrinsic-size:auto 4.6em}
 body.idle *,body.idle *::before,body.idle *::after{animation-play-state:paused!important}
 /* мінімалістичний оверлей */
-body.ov{--ac:#b9c0c9;--acx:#101215;--b1:rgba(255,255,255,.035);--b2:rgba(255,255,255,.065);--b3:rgba(255,255,255,.12)}
-body.ov main{font-size:.93em}
-body.ov .win{border-color:var(--b1)}
-body.ov svg{stroke-width:1.5}
-body.ov .card,body.ov .code,body.ov .tot div{box-shadow:none}
-body.ov .code:hover,body.ov .ncard:hover{box-shadow:none}
-body.ov button,body.ov button:hover{box-shadow:none!important}
-body.ov button:hover{transform:none}
-body.ov .badge{background:none!important;border-color:var(--b3)!important;color:var(--mut)!important}
-body.ov .art.sel{background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1px var(--b3)}
-body.ov .num{color:var(--tx)}
-body.ov .ovbar{border:0;margin-bottom:.4em;padding:0;min-height:1.9em}
-body.ov .ovtabs button{background:none;border-color:transparent;color:var(--mut);padding:.2em .6em;font-size:.88em}
-body.ov .ovtabs button.on{color:var(--tx);border-color:var(--b2);background:rgba(255,255,255,.04)}
-.ovdock{display:none;align-items:center;gap:.3em;margin-left:auto;padding:.15em .35em;border-radius:999px;border:1px solid var(--b1);background:color-mix(in srgb,var(--l1) 70%,transparent);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);opacity:.2;transition:opacity .3s ease}
-body.ov .ovdock{display:flex}
-body.ov .ovbar:hover .ovdock,body.ov .ovdock:hover,body.ov .ovdock:focus-within{opacity:1}
-.ovdock .ico{border:0;background:none;color:var(--mut);padding:.28em .4em;border-radius:50%}
-.ovdock .ico:hover{color:var(--tx);background:rgba(255,255,255,.06)}
-.ovdock .ico.on{color:var(--tx);background:rgba(255,255,255,.1)}
-.ovdock input[type=range]{width:4.6em;height:.9em;accent-color:#9aa3ad}
-body.ov .foot{font-size:.72em;opacity:.8}
-body.ov .toolbar{margin:.1em 0 .5em}
-body.ov .art{padding:.42em .6em}
+
 @media(prefers-reduced-motion:reduce){.tab.stg>*,body.intro nav>*,.dot,.gd{animation:none!important}.nav-ind.ready{transition:none}}
 
 /* ===== v1.2.7: двопанельне читання, додаткові санкції, категорії довідника, нотатки ===== */
@@ -368,8 +324,7 @@ main.fill #db{flex:1;min-height:0;display:flex;flex-direction:column}
 .xt{margin-top:.5em;padding:.6em .75em;background:var(--bg);border:1px solid rgba(185,84,78,.35);border-radius:var(--r2)}
 .xt>span{display:block;color:var(--mut);font-size:.8em;margin-bottom:.4em}
 .xl{display:flex;flex-wrap:wrap;gap:.4em}
-body.ov .xchip{background:rgba(255,255,255,.05);border-color:var(--b3);color:var(--tx)}
-body.ov .xt{border-color:var(--b2)}
+
 /* довідник: категорії */
 .fcats{display:flex;flex-wrap:wrap;gap:.4em;margin-bottom:.8em}
 .ctab{border-radius:var(--r2);padding:.3em .85em;font-size:.9em;background:none;color:var(--mut)}
@@ -404,5 +359,76 @@ body.ov .xt{border-color:var(--b2)}
 /* підтвердження копіювання */
 button.done{background:rgba(106,160,131,.18);border-color:var(--grn);color:#a9dcbf;animation:okpop .3s var(--ease)}
 @keyframes okpop{0%{transform:scale(.94)}60%{transform:scale(1.04)}100%{transform:scale(1)}}
-body.ov .notes2{grid-template-columns:1fr}
+
 @media(max-width:900px){.notes2,.reader{grid-template-columns:1fr}}
+
+/* ===== v1.2.8: Spotlight Bar (оверлей) ===== */
+#spotWrap{display:none}
+
+.spotwrap{padding:4px 8px 14px;font-size:calc(var(--fs)*.93);transition:opacity .25s ease}
+.byline{width:max-content;margin:0 auto -1px;padding:.3em 1em .25em;border-radius:12px 12px 0 0;font-size:.78em;color:var(--mut);letter-spacing:.02em;
+  background:rgba(22,26,32,calc(var(--ov)*.72));border:1px solid rgba(255,255,255,.07);border-bottom:0}
+.byline b{color:var(--tx);font-weight:600}
+.spot{position:relative;border-radius:22px;border:1px solid rgba(255,255,255,.09);color:var(--tx);overflow:hidden;
+  background:linear-gradient(180deg,rgba(32,37,44,calc(var(--ov)*.84)),rgba(13,16,20,calc(var(--ov)*.92)));
+  -webkit-backdrop-filter:blur(22px) saturate(150%);backdrop-filter:blur(22px) saturate(150%);
+  box-shadow:0 18px 48px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.07)}
+
+.spgrid{display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:.9em;row-gap:.5em;align-items:center;padding:.7em .85em .7em 1em}
+.spbrand{display:flex;align-items:center;gap:.55em;font-weight:600;white-space:nowrap}
+.spbrand svg{width:1.55em;height:1.55em}
+.spsearch input{width:100%;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:.55em .85em;color:var(--tx);font:inherit;transition:border-color .18s,background-color .18s}
+.spsearch input:hover{border-color:rgba(255,255,255,.16)}
+.spsearch input:focus{border-color:rgba(255,255,255,.3);outline:0;background:rgba(0,0,0,.4)}
+.spicons{display:flex;gap:.15em}
+.spi{width:2.15em;height:2.15em;padding:0;display:grid;place-items:center;border-radius:50%;background:none;border:0;color:var(--mut)}
+.spi svg{width:1.2em;height:1.2em}
+.spi:hover{background:rgba(255,255,255,.08);color:var(--tx)}.spi.on{color:var(--tx);background:rgba(255,255,255,.12)}
+.sptabs{grid-column:2;display:flex;gap:.4em;flex-wrap:wrap}
+.sptabs button{padding:.16em .7em;font-size:.86em;font-family:Consolas,"Segoe UI",monospace;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.11);border-radius:8px;color:var(--tx)}
+.sptabs button:hover{background:rgba(255,255,255,.08)}
+.sptabs button.on{border-color:#5fa07b;color:#a9dcbf;background:rgba(95,160,123,.14)}
+.spot.compact .sptabs{display:none}
+.sppanel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .3s var(--ease)}
+.sppanel.open{grid-template-rows:1fr}
+.sppanel>div{overflow:hidden;min-height:0}
+.spbody{max-height:21em;overflow-y:auto;padding:0 .85em;display:grid;gap:.5em;align-content:start}
+.sppanel.open .spbody{border-top:1px solid rgba(255,255,255,.06);padding:.7em .85em .85em}
+.rcard{display:grid;gap:.3em;padding:.65em .8em;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);transition:border-color .18s,background-color .18s}
+.rcard.act{border-color:rgba(255,255,255,.24);background:rgba(255,255,255,.07)}
+.rt{display:grid;line-height:1.35}.rt b{font-weight:600}.rt span{color:var(--mut);font-size:.92em}
+.kv{display:flex;gap:.45em;font-size:.95em}.kv span{color:var(--mut)}.kv b{font-weight:600}
+.rcard .xline{margin-top:.2em}
+.ract{display:flex;align-items:center;gap:.6em;margin-top:.3em;flex-wrap:wrap}
+.spb{padding:.35em .9em;border-radius:9px;font-size:.9em;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.15);color:var(--tx)}
+.spb:hover{background:rgba(255,255,255,.1)}.spb.ghost{border-color:rgba(255,255,255,.08);color:var(--mut)}
+.spb.danger{color:#e6aaa6;border-color:rgba(185,84,78,.5)}
+.okmark{color:#6fd09a;font-weight:600;font-size:.92em;opacity:0;transform:translateX(-5px);transition:opacity .2s,transform .28s var(--ease);pointer-events:none;text-shadow:0 0 14px rgba(111,208,154,.35)}
+.okmark.show{opacity:1;transform:none}
+.sphint{color:var(--mut);padding:.35em .2em;font-size:.92em}
+.sphint button{padding:.1em .6em;margin-left:.3em;font-size:.9em}
+.spans{color:var(--tx);line-height:1.5;white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.spans.full{-webkit-line-clamp:unset;display:block}
+.sphist{display:flex;justify-content:space-between;align-items:center;gap:.5em;padding:.4em .6em;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);text-align:left;width:100%}
+.sphist:hover{background:rgba(255,255,255,.09)}
+.spchips{display:flex;flex-wrap:wrap;gap:.35em}
+.spchip{display:inline-flex;align-items:center;gap:.4em;padding:.15em .3em .15em .7em;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);font-size:.88em}
+.spchip button{padding:0 .45em;border:0;background:none;color:var(--mut)}.spchip button:hover{color:var(--tx)}
+.sptot{display:grid;grid-template-columns:repeat(4,1fr);gap:.4em}
+.sptot div{padding:.4em .55em;border-radius:10px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.06)}
+.sptot span{display:block;color:var(--mut);font-size:.78em}.sptot b{font-weight:600}
+.spm{display:flex;justify-content:space-between;align-items:center;gap:.8em;padding:.4em .2em;border-bottom:1px solid rgba(255,255,255,.05)}
+.spm input[type=range]{width:9em;accent-color:#9aa3ad}
+.tg{position:relative;width:2.5em;height:1.35em;padding:0;border-radius:999px;border:0;background:rgba(255,255,255,.14);flex:none}
+.tg::after{content:"";position:absolute;top:.17em;left:.17em;width:1em;height:1em;border-radius:50%;background:#d3d9df;transition:transform .22s var(--ease)}
+.tg.on{background:#4f8f6c}.tg.on::after{transform:translateX(1.15em)}
+.tg:hover{transform:none}
+.spm2{display:flex;gap:.5em;flex-wrap:wrap;padding-top:.5em}
+
+/* ===== Spotlight Bar: єдиний режим оверлею ===== */
+body.ov .win{display:none}
+body.ov #spotWrap{display:block}
+body.ov.ct .spot{box-shadow:0 0 0 1px rgba(255,255,255,.22),0 18px 48px rgba(0,0,0,.5)}
+body.ov.smart.inactive #spotWrap{opacity:var(--bgop)}
+body.ov.smart.inactive #spotWrap:hover{opacity:1}
+body.ov #spot button:hover{box-shadow:none!important;transform:none}

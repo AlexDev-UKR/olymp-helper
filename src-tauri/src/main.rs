@@ -1,13 +1,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod vault;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Mutex;
 use std::{thread, time::Duration};
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, State, WebviewWindow, WindowEvent, Wry};
+use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, State, WebviewWindow, WindowEvent, Wry};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt as _};
 use tauri_plugin_dialog::DialogExt;
 use std::str::FromStr;
@@ -15,22 +15,24 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_updater::UpdaterExt;
 
+// Spotlight Bar: фіксована ширина, висота підлаштовується під вміст (мінімальна площа перекриття екрана)
+const SPOT_W: f64 = 620.0;
+
 struct Game { exe: Mutex<String>, running: AtomicBool }
-struct Mode(Mutex<String>);
 #[derive(Clone)]
 struct KeysCfg { toggle: String, click: String, lock: String, stop: String }
 struct Keys(Mutex<KeysCfg>);
 struct VaultState(vault::Vault);
 struct Flags {
     overlay_active: AtomicBool, auto_overlay: AtomicBool, close_tray: AtomicBool, boot_ready: AtomicBool,
-    on_top: AtomicBool, click_through: AtomicBool, ov_locked: AtomicBool, flush: AtomicBool,
+    on_top: AtomicBool, click_through: AtomicBool, ov_locked: AtomicBool, flush: AtomicBool, spot_h: AtomicU32,
 }
 impl Flags {
     fn new() -> Self {
         Flags {
             overlay_active: AtomicBool::new(false), auto_overlay: AtomicBool::new(false), close_tray: AtomicBool::new(true),
             boot_ready: AtomicBool::new(false), on_top: AtomicBool::new(true), click_through: AtomicBool::new(false),
-            ov_locked: AtomicBool::new(false), flush: AtomicBool::new(false),
+            ov_locked: AtomicBool::new(false), flush: AtomicBool::new(false), spot_h: AtomicU32::new(200),
         }
     }
 }
@@ -100,17 +102,34 @@ fn rebuild_tray(app: &AppHandle) {
 }
 
 // ---------- оверлей ----------
-// mode: "overlay" (прозоре, поверх гри, без рамки) або "window" (звичайне вікно з рамкою)
-fn apply(app: &AppHandle, mode: &str) {
+// Позиція Spotlight Bar: збережена або по центру зверху першого монітора. Висоту задає вміст (spot_resize).
+fn restore_pos(app: &AppHandle, w: &WebviewWindow) {
+    let d = match vault(app) { Ok(v) => v.0.dump(), Err(_) => return };
+    let sf = w.scale_factor().unwrap_or(1.0);
+    let h = app.state::<Flags>().spot_h.load(Ordering::Relaxed).max(56) as f64;
+    let _ = w.set_size(LogicalSize::new(SPOT_W, h));
+    if let Some(g) = d.get("gov.ovpos").and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok()) {
+        if let (Some(x), Some(y)) = (g["x"].as_i64(), g["y"].as_i64()) {
+            if on_screen(app, x as i32, y as i32) { let _ = w.set_position(PhysicalPosition::new(x as i32, y as i32)); return; }
+        }
+    }
+    if let Ok(Some(m)) = app.primary_monitor() {
+        let (p, s) = (m.position(), m.size());
+        let x = p.x + ((s.width as f64 - SPOT_W * sf) / 2.0) as i32;
+        let _ = w.set_position(PhysicalPosition::new(x, p.y + (36.0 * sf) as i32));
+    }
+}
+
+// Показує Spotlight Bar: прозоре вікно без рамки поверх гри
+fn apply(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("overlay") {
-        let f = app.state::<Flags>();
-        let framed = mode == "window";
-        let _ = w.set_decorations(framed);
-        let _ = w.set_always_on_top(!framed && f.on_top.load(Ordering::Relaxed));
-        let _ = w.set_skip_taskbar(!framed);
-        let _ = w.set_resizable(!f.ov_locked.load(Ordering::Relaxed));
-        let _ = w.set_title(if framed { "Olymp Helper — База законів" } else { "Olymp Оверлей" });
-        let _ = w.emit("overlay-mode", mode);
+        let on_top = app.state::<Flags>().on_top.load(Ordering::Relaxed);
+        let _ = w.set_decorations(false);
+        let _ = w.set_always_on_top(on_top);
+        let _ = w.set_skip_taskbar(true);
+        let _ = w.set_resizable(false);
+        let _ = w.set_title("Olymp Оверлей");
+        restore_pos(app, &w);
         let _ = w.show();
         let _ = w.set_focus();
     }
@@ -180,8 +199,7 @@ fn toggle(app: &AppHandle) {
         if w.is_visible().unwrap_or(false) {
             let _ = w.hide();
         } else {
-            let m = app.state::<Mode>().0.lock().unwrap().clone();
-            apply(app, &m);
+            apply(app);
         }
     }
 }
@@ -193,38 +211,22 @@ fn on_screen(app: &AppHandle, x: i32, y: i32) -> bool {
     })).unwrap_or(true)
 }
 
-// Відновлює збережені позицію, розмір і стан замка оверлею.
+// Відновлює збережений стан замка оверлею.
 fn restore_overlay(app: &AppHandle) {
-    let Some(w) = app.get_webview_window("overlay") else { return };
     let Ok(v) = vault(app) else { return };
-    let d = v.0.dump();
-    if let Some(g) = d.get("gov.ovgeo").and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok()) {
-        if let (Some(x), Some(y), Some(wd), Some(ht)) = (g["x"].as_i64(), g["y"].as_i64(), g["w"].as_u64(), g["h"].as_u64()) {
-            let sf = w.scale_factor().unwrap_or(1.0);
-            let wd = wd.max((320.0 * sf) as u64) as u32;
-            let ht = ht.max((400.0 * sf) as u64) as u32;
-            let _ = w.set_size(PhysicalSize::new(wd, ht));
-            if on_screen(app, x as i32, y as i32) { let _ = w.set_position(PhysicalPosition::new(x as i32, y as i32)); }
-        }
-    }
-    let locked = d.get("gov.ovlock").map(|s| s == "1").unwrap_or(false);
+    let locked = v.0.dump().get("gov.ovlock").map(|s| s == "1").unwrap_or(false);
     app.state::<Flags>().ov_locked.store(locked, Ordering::Relaxed);
-    let _ = w.set_resizable(!locked);
 }
 
 #[tauri::command]
-fn show_overlay(app: AppHandle, mode: String, state: State<Mode>) {
-    *state.0.lock().unwrap() = mode.clone();
+fn show_overlay(app: AppHandle) {
     set_overlay_active(&app, true);
-    apply(&app, &mode);
+    apply(&app);
     hide_main(&app); // лаунчер згортається в трей і працює у фоні
 }
 
 #[tauri::command]
 fn stop_overlay(app: AppHandle) { do_stop_overlay(&app) }
-
-#[tauri::command]
-fn set_overlay_mode(mode: String, state: State<Mode>) { *state.0.lock().unwrap() = mode; }
 
 #[tauri::command]
 fn toggle_overlay(app: AppHandle) {
@@ -236,7 +238,6 @@ fn toggle_overlay(app: AppHandle) {
 
 fn set_lock(app: &AppHandle, locked: bool) {
     app.state::<Flags>().ov_locked.store(locked, Ordering::Relaxed);
-    if let Some(w) = app.get_webview_window("overlay") { let _ = w.set_resizable(!locked); }
     if let Ok(v) = vault(app) { let _ = v.0.set("gov.ovlock", (if locked { "1" } else { "0" }).to_string()); }
     let _ = app.emit("overlay-lock", locked);
 }
@@ -251,14 +252,26 @@ fn set_overlay_lock(app: AppHandle, locked: bool) { set_lock(&app, locked) }
 
 // Застосовує збережені (наприклад, імпортовані) позицію, розмір і стан замка оверлею.
 #[tauri::command]
-fn apply_overlay_state(app: AppHandle) { restore_overlay(&app) }
+fn apply_overlay_state(app: AppHandle) {
+    restore_overlay(&app);
+    if let Some(w) = app.get_webview_window("overlay") {
+        if w.is_visible().unwrap_or(false) { restore_pos(&app, &w); }
+    }
+}
+
+// Spotlight Bar повідомляє потрібну висоту вмісту; вікно підлаштовується, щоб не перекривати зайвого
+#[tauri::command]
+fn spot_resize(app: AppHandle, h: f64) {
+    let h = h.clamp(56.0, 900.0);
+    app.state::<Flags>().spot_h.store(h as u32, Ordering::Relaxed);
+    if let Some(w) = app.get_webview_window("overlay") { let _ = w.set_size(LogicalSize::new(SPOT_W, h)); }
+}
 
 #[tauri::command]
 fn set_overlay_ontop(app: AppHandle, on: bool) {
     app.state::<Flags>().on_top.store(on, Ordering::Relaxed);
-    let mode = app.state::<Mode>().0.lock().unwrap().clone();
     if let Some(w) = app.get_webview_window("overlay") {
-        if w.is_visible().unwrap_or(false) && mode != "window" { let _ = w.set_always_on_top(on); }
+        if w.is_visible().unwrap_or(false) { let _ = w.set_always_on_top(on); }
     }
 }
 
@@ -271,8 +284,7 @@ fn set_auto_overlay(app: AppHandle, enabled: bool) {
     let running = app.state::<Game>().running.load(Ordering::Relaxed);
     if enabled && running && !app.state::<Flags>().overlay_active.load(Ordering::Relaxed) {
         set_overlay_active(&app, true);
-        let m = app.state::<Mode>().0.lock().unwrap().clone();
-        apply(&app, &m);
+        apply(&app);
     }
 }
 
@@ -478,7 +490,6 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_notice(app)))
         .plugin(guard_plugin())
         .manage(Game { exe: Mutex::new(String::new()), running: AtomicBool::new(false) })
-        .manage(Mode(Mutex::new("overlay".to_string())))
         .manage(Keys(Mutex::new(KeysCfg { toggle: "F5".into(), click: "Shift+F5".into(), lock: String::new(), stop: String::new() })))
         .manage(Flags::new())
         .plugin(tauri_plugin_dialog::init())
@@ -548,8 +559,7 @@ fn main() {
                         if h.state::<Flags>().auto_overlay.load(Ordering::Relaxed) {
                             if running {
                                 set_overlay_active(&h, true);
-                                let m = h.state::<Mode>().0.lock().unwrap().clone();
-                                apply(&h, &m);
+                                apply(&h);
                             } else {
                                 do_stop_overlay(&h);
                             }
@@ -568,10 +578,10 @@ fn main() {
                     let Some(w) = hg.get_webview_window("overlay") else { thread::sleep(Duration::from_secs(3)); continue };
                     if !w.is_visible().unwrap_or(false) { thread::sleep(Duration::from_secs(3)); continue; }
                     thread::sleep(Duration::from_secs(1));
-                    if let (Ok(p), Ok(s)) = (w.outer_position(), w.inner_size()) {
-                        let j = serde_json::json!({ "x": p.x, "y": p.y, "w": s.width, "h": s.height }).to_string();
+                    if let Ok(p) = w.outer_position() {
+                        let j = serde_json::json!({ "x": p.x, "y": p.y }).to_string();
                         if j != last {
-                            if let Ok(v) = vault(&hg) { let _ = v.0.set("gov.ovgeo", j.clone()); }
+                            if let Ok(v) = vault(&hg) { let _ = v.0.set("gov.ovpos", j.clone()); }
                             last = j;
                         }
                     }
@@ -603,8 +613,8 @@ fn main() {
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![
-            toggle_overlay, show_overlay, stop_overlay, set_overlay_mode, set_overlay_lock, set_overlay_ontop,
-            set_click_through, set_auto_overlay, set_close_mode, set_game_exe, game_state, set_keybinds, apply_overlay_state,
+            toggle_overlay, show_overlay, stop_overlay, set_overlay_lock, set_overlay_ontop,
+            set_click_through, set_auto_overlay, set_close_mode, set_game_exe, game_state, set_keybinds, apply_overlay_state, spot_resize,
             set_autostart, pick_exe, open_url, app_version, check_update, install_update,
             vault_dump, vault_set, vault_del, finish_boot_cmd, boot_ready, boot_state, notice_ok, win_ctl, set_frame
         ])

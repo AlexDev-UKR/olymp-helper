@@ -20,19 +20,17 @@
         "label": "overlay",
         "title": "Olymp Оверлей",
         "url": "index.html?mode=overlay",
-        "width": 520,
-        "height": 720,
-        "x": 40,
-        "y": 40,
+        "width": 620,
+        "height": 200,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "visible": false,
-        "resizable": true,
+        "resizable": false,
         "shadow": false,
         "minWidth": 320,
-        "minHeight": 400
+        "minHeight": 56
       }
     ],
     "security": {
