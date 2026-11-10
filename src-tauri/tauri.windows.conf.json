@@ -30,7 +30,9 @@
         "resizable": false,
         "shadow": false,
         "minWidth": 320,
-        "minHeight": 56
+        "minHeight": 56,
+        "maximizable": false,
+        "minimizable": false
       }
     ],
     "security": {

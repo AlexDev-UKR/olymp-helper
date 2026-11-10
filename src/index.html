@@ -63,16 +63,18 @@
    </section>
 
    <section id="laws" class="tab hide">
-    <h1 class="only-launcher">⚖️ Калькулятор покарань</h1>
-    <div class="toolbar">
-     <input type="search" id="q" placeholder="Пошук за номером, назвою, описом або тегом (Ctrl + K)">
-     <button id="sync">↻ Оновити базу</button>
-    </div>
-    <div class="split">
-     <div id="list"></div>
-     <aside class="card calc">
-      <h2>Калькулятор покарань</h2>
-      <div id="picked" class="note">Оберіть статті зі списку</div>
+    <h1 class="only-launcher">Калькулятор покарань</h1>
+    <div class="calcgrid">
+     <div class="cleft">
+      <div class="seg" id="cseg"><button class="on" data-cv="added">Додані<span id="cAddedN">0</span></button><button data-cv="catalog">Каталог статей</button></div>
+      <div class="cpane" id="paneAdded"><div id="addedList"></div></div>
+      <div class="cpane hide" id="paneCat">
+       <div class="toolbar"><input type="search" id="q" placeholder="Пошук за номером, назвою, описом або тегом"><button id="sync">↻ Оновити базу</button></div>
+       <div id="list"></div>
+      </div>
+     </div>
+     <aside class="csum card">
+      <div class="csum-h"><h2>Підсумок</h2><span id="picked" class="note">Оберіть статті зі списку</span></div>
       <div class="tot">
        <div><span>Штраф</span><strong id="tf">$0</strong></div>
        <div><span>КПЗ</span><strong id="tj">0 хв</strong></div>
@@ -81,14 +83,15 @@
       </div>
       <div class="xt hide" id="txw"><span>Додаткові санкції</span><div class="xl" id="tx"></div></div>
       <div id="jnote" class="note warn"></div>
-      <div class="row" style="margin-top:.8em"><button id="clr">Скинути вибір</button><button id="mir">Правило Міранди</button><button id="copySum">Копіювати підсумок</button></div>
+      <button class="pri big" id="copySum" disabled>Скопіювати підсумок</button>
+      <div class="row"><button id="clr" disabled>Очистити</button><button id="mir">Правило Міранди</button></div>
       <textarea id="mtext" readonly hidden></textarea><button id="mcopy" hidden class="wide">Копіювати текст</button>
      </aside>
     </div>
    </section>
 
    <section id="db" class="tab hide only-launcher">
-    <h1>📚 Кодекси та Закони</h1><p class="sub">Повний текст нормативно-правових актів без прив’язки до штрафів і термінів. Дані завантажуються з файлу codes.json.</p>
+    <h1>Кодекси та Закони</h1><p class="sub">Повний текст нормативно-правових актів без прив’язки до штрафів і термінів. Дані завантажуються з файлу codes.json.</p>
     <div class="reader">
      <aside class="rleft"><input type="search" id="rq" placeholder="Пошук за номером, назвою або текстом"><div class="rtree" id="rlist"></div></aside>
      <article class="rright" id="rbody"></article>
@@ -96,7 +99,7 @@
    </section>
 
    <section id="faq" class="tab hide">
-    <h1 class="only-launcher">Довідник</h1><p class="sub only-launcher">Відповіді на часті питання. Дані завантажуються з файлу faq.json.</p>
+    <h1 class="only-launcher">Довідник</h1><p class="sub only-launcher">Відповіді на часті питання.</p>
     <div class="toolbar"><input type="search" id="fq" placeholder="Пошук у довіднику"></div>
     <div class="fcats" id="fcats"></div>
     <div class="chips" id="ftags"></div>
@@ -104,7 +107,7 @@
    </section>
 
    <section id="notes" class="tab hide">
-    <h1 class="only-launcher">Нотатки</h1><p class="sub only-launcher">Зберігаються на вашому комп’ютері у зашифрованому вигляді й записуються автоматично. Шаблони підвантажуються з templates.json.</p>
+    <h1 class="only-launcher">Нотатки</h1><p class="sub only-launcher">Зберігаються на вашому комп’ютері у зашифрованому вигляді й записуються автоматично.</p>
     <div class="notes2">
      <div class="nleft">
       <div class="split-btn" id="nsplit">
@@ -130,7 +133,7 @@
      <div class="field"><label for="exe">Процес гри</label><div class="ctl row"><input type="text" id="exe" placeholder="GTA5.exe"><button id="pick">Вибрати…</button></div><p class="hint" id="exeHint"></p></div>
                <div class="field"><label for="ontop">Поверх вікон</label><div class="ctl"><label class="chk"><input type="checkbox" id="ontop"> Завжди поверх інших вікон (для режиму оверлею)</label></div></div>
      <div class="field"><label for="smart">Розумна прозорість</label><div class="ctl"><label class="chk"><input type="checkbox" id="smart"> Робити оверлей прозорішим, коли він не в фокусі</label></div></div>
-     <div class="field"><label for="bgop">Прозорість у фоні: <span id="bgopv">55</span>%</label><div class="ctl"><input type="range" id="bgop" min="20" max="100" value="55"></div><p class="hint">Наскрізний режим (кліки проходять у гру) вмикається кнопкою в шапці оверлею, пунктом меню в треї або клавішею <b id="clickKey">Shift + F5</b>.</p></div>
+     <div class="field"><label for="bgop">Прозорість у фоні: <span id="bgopv">55</span>%</label><div class="ctl"><input type="range" id="bgop" min="20" max="100" value="55"></div><p class="hint">Наскрізний режим (кліки проходять у гру) вмикається кнопкою в шапці оверлею, пунктом меню в треї або клавішею <b id="clickKey">—</b>.</p></div>
      <div class="field"><label for="op">Прозорість: <span id="opv">90</span>%</label><div class="ctl"><input type="range" id="op" min="40" max="100" value="90"></div></div>
     </div>
     <div class="card group"><h2>Гарячі клавіші</h2>
@@ -172,14 +175,15 @@
 <div class="spotwrap" id="spotWrap">
  <div class="byline" id="spotBy" data-tauri-drag-region>by <b>Sanchos</b></div>
  <div class="spot" id="spot">
-  <div class="spgrid" id="spotBar" data-tauri-drag-region>
-   <div class="spbrand" data-tauri-drag-region><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M12 3l7 3v5c0 4.6-3 8.2-7 10-4-1.8-7-5.4-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg><span>Olymp Helper</span></div>
+  <div class="spgrid" id="spotBar">
+   <div class="spbrand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M12 3l7 3v5c0 4.6-3 8.2-7 10-4-1.8-7-5.4-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg><span>Olymp Helper</span></div>
    <div class="spsearch"><input type="search" id="sq" placeholder="Пошук законів, статей, FAQ, нотаток..." autocomplete="off" spellcheck="false" aria-label="Пошук"></div>
    <div class="spicons"><button class="spi" id="spHist" title="Історія пошуку" aria-label="Історія пошуку"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></button><button class="spi" id="spGear" title="Налаштування оверлею" aria-label="Налаштування оверлею"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></svg></button></div>
    <div class="sptabs" id="spTabs"><button class="on" data-sp="laws">[ Закони ]</button><button data-sp="faq">[ FAQ ]</button><button data-sp="notes">[ Нотатки ]</button><button data-sp="calc">[ Калькулятор ]</button></div>
   </div>
   <div class="sppanel" id="spPanel"><div><div class="spbody" id="spBody"></div></div></div>
  </div>
+ <div class="sptoasts" id="spToasts" aria-live="polite"></div>
 </div>
 
 <div class="rz" data-d="North"></div><div class="rz" data-d="South"></div><div class="rz" data-d="West"></div><div class="rz" data-d="East"></div><div class="rz" data-d="NorthWest"></div><div class="rz" data-d="NorthEast"></div><div class="rz" data-d="SouthWest"></div><div class="rz" data-d="SouthEast"></div>
@@ -204,6 +208,6 @@
  <div class="row" style="margin-top:.8em"><button class="pri" id="tsave">Зберегти</button><button id="tcancel">Скасувати</button></div>
 </div></div>
 
-<div class="toast" id="toast"></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
 <script src="app.js" defer></script>
 </body></html>

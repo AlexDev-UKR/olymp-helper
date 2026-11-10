@@ -125,6 +125,10 @@ fn apply(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("overlay") {
         let on_top = app.state::<Flags>().on_top.load(Ordering::Relaxed);
         let _ = w.set_decorations(false);
+        let _ = w.set_shadow(false);       // без системної тіні й рамки навколо прозорого вікна
+        let _ = w.set_resizable(false);    // розмір вікна змінюється лише програмно (spot_resize)
+        let _ = w.set_maximizable(false);
+        let _ = w.set_minimizable(false);
         let _ = w.set_always_on_top(on_top);
         let _ = w.set_skip_taskbar(true);
         let _ = w.set_resizable(false);
@@ -490,7 +494,8 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_notice(app)))
         .plugin(guard_plugin())
         .manage(Game { exe: Mutex::new(String::new()), running: AtomicBool::new(false) })
-        .manage(Keys(Mutex::new(KeysCfg { toggle: "F5".into(), click: "Shift+F5".into(), lock: String::new(), stop: String::new() })))
+        // бінди порожні, доки інтерфейс не передасть актуальні значення з налаштувань користувача
+        .manage(Keys(Mutex::new(KeysCfg { toggle: String::new(), click: String::new(), lock: String::new(), stop: String::new() })))
         .manage(Flags::new())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
@@ -594,7 +599,10 @@ fn main() {
                 "main" => {
                     if w.app_handle().state::<Flags>().close_tray.load(Ordering::Relaxed) {
                         api.prevent_close();
-                        let _ = w.hide();
+                        // коротке сповіщення «працює в треї», потім вікно ховається
+                        let _ = w.emit("tray-hint", ());
+                        let ww = w.clone();
+                        thread::spawn(move || { thread::sleep(Duration::from_millis(1400)); let _ = ww.hide(); });
                     } else {
                         w.app_handle().exit(0);
                     }

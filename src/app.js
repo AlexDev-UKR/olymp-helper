@@ -34,7 +34,23 @@ const later={};
 function setLater(k,v,ms=300){MEM[k]=v;clearTimeout(later[k]);later[k]=setTimeout(()=>store.set(k,v),ms)}
 
 const $=id=>document.getElementById(id);
-const toast=t=>{const e=$("toast");e.textContent=t;e.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display="none",2200)};
+// ---- сповіщення (toast): стек до 3, типи, автозникнення. Текст може бути функцією: бінд-клавіші підтягуються з актуального стану в момент показу ----
+const TICON={ok:"✓",info:"i",warn:"!"};
+function toast(msg,type){
+  const text=String(typeof msg==="function"?msg():msg);
+  type=type||(/не вдал|помилк|недоступн|не підтримує|не налаштован|вже використов|потрібен/i.test(text)?"warn":/скопійов|збережено|застосовано|заблоковано|розблоковано|увімкнено|вимкнено|активний|відновлено|замінено|імпортовано/i.test(text)?"ok":"info");
+  const box=document.body.classList.contains("ov")?$("spToasts"):$("toasts");
+  if(!box)return;
+  const dup=[...box.children].find(e=>e.dataset.t===text);
+  if(dup){clearTimeout(dup._t);dup._t=setTimeout(dup._k,3400);dup.classList.remove("out");return}
+  const el=document.createElement("div");
+  el.className="tst "+type;el.dataset.t=text;el.setAttribute("role","status");
+  el.innerHTML=`<i>${TICON[type]||"i"}</i><span></span>`;el.lastChild.textContent=text;
+  el._k=()=>{el.classList.add("out");setTimeout(()=>el.remove(),260)};
+  el._t=setTimeout(el._k,3400);el.onclick=el._k;
+  box.appendChild(el);
+  while(box.children.length>3)box.firstElementChild.remove();
+}
 const fmt=n=>"$"+Number(n||0).toLocaleString("uk-UA");
 const norm=s=>String(s??"").toLowerCase().replace(/[’ʼ'`]/g,"");
 async function copyBtn(btn,text){
@@ -142,12 +158,34 @@ function calc(){
   XS=[];const seen=new Set();for(const a of p)for(const x of xlist(a)){const k=x.toLowerCase();if(!seen.has(k)){seen.add(k);XS.push(x)}}
   $("tf").textContent=f?fmt(f):(p.length?"—":"$0");$("tj").textContent=j+" хв";$("tw").textContent=w?"★".repeat(w):"—";
   const tb=$("tb");tb.className=(!jl.length||noBail)?"no":"";tb.textContent=!jl.length?"—":noBail?"Немає":fmt(bail);
+  $("cAddedN").textContent=p.length;$("copySum").disabled=!p.length;$("clr").disabled=!p.length;renderAdded(p);
   $("txw").classList.toggle("hide",!XS.length);$("tx").innerHTML=XS.map(x=>`<span class="xchip">${esc(x)}</span>`).join("");
   $("jnote").textContent=raw>LIM?`КПЗ обмежено до ${LIM} хв (сума за статтями: ${raw} хв).`+(noBail?" Заставу не передбачено.":""):(noBail?"Серед обраних є стаття без права на заставу.":"");
   $("picked").textContent=p.length?"Обрано: "+p.map(a=>a.code+" "+a.number).join(", "):"Оберіть статті зі списку";
 }
 const sumText=()=>["Штраф: "+$("tf").textContent,"КПЗ: "+$("tj").textContent,"Розшук: "+$("tw").textContent,"Застава: "+$("tb").textContent].join("; ")+(XS.length?"\nДодатково: "+XS.join("; "):"");
 $("copySum").onclick=()=>{if(!picked().length){toast("Спершу оберіть статті");return}copyBtn($("copySum"),sumText())};
+// ліва зона: список доданих статей (з видаленням) і каталог; права зона: підсумок
+let prevAdded=new Set();
+const mc=(t,c="")=>`<span class="cmeta-c ${c}">${t}</span>`;
+const TRASH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/></svg>';
+const citem=(a,isNew)=>`<div class="citem ${isNew?"new":""}" data-id="${esc(a.id)}"><div class="cnum">${esc(a.code)}<b>${esc(a.number)}</b></div><div class="cbody"><h3>${esc(a.title)}</h3><div class="cmeta">${mc("Штраф "+(a.fine?fmt(a.fine):"—"))}${mc("КПЗ "+(a.jail_minutes?a.jail_minutes+" хв":"—"))}${mc("Розшук "+("★".repeat(a.wanted_level)||"—"))}${a.jail_minutes>0?mc("Застава "+(a.bail?fmt(a.bail):"немає")):""}${xlist(a).map(x=>mc(esc(x),"x")).join("")}</div></div><button class="cdel" data-del="${esc(a.id)}" aria-label="Прибрати статтю" title="Прибрати">${TRASH}</button></div>`;
+function renderAdded(p){
+  const box=$("addedList");
+  if(!p.length){prevAdded=new Set();box.innerHTML='<div class="cempty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8M8 12h4M8 16h2"/></svg><b>Статті ще не додано</b><p>Відкрийте каталог і відмітьте статті, які порушив гравець. Штраф, КПЗ, розшук і додаткові санкції підрахуються праворуч автоматично.</p><button class="pri" data-cv="catalog">Відкрити каталог</button></div>';return}
+  box.innerHTML=p.map(a=>citem(a,!prevAdded.has(a.id))).join("");
+  prevAdded=new Set(p.map(a=>a.id));
+}
+function cview(v){
+  $("cseg").querySelectorAll("[data-cv]").forEach(b=>b.classList.toggle("on",b.dataset.cv===v));
+  $("paneAdded").classList.toggle("hide",v!=="added");$("paneCat").classList.toggle("hide",v!=="catalog");
+  if(v==="catalog")setTimeout(()=>$("q").focus(),0);
+}
+$("cseg").addEventListener("click",e=>{const b=e.target.closest("[data-cv]");if(b)cview(b.dataset.cv)});
+$("addedList").addEventListener("click",e=>{
+  const go=e.target.closest("[data-cv]");if(go){cview(go.dataset.cv);return}
+  const d=e.target.closest("[data-del]");if(d)toggle(d.dataset.del);
+});
 function toggle(id){
   sel.has(id)?sel.delete(id):sel.add(id);
   const el=document.querySelector(`.art[data-id="${CSS.escape(id)}"]`);
@@ -311,7 +349,7 @@ function tab(t){
   TABS.forEach(x=>$(x).classList.toggle("hide",x!==t));
   document.querySelectorAll("[data-t]").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
   if(!document.body.classList.contains("ov")){moveInd();stagger(t)}
-  if(t==="laws")setTimeout(()=>$("q").focus(),0);if(t==="faq")setTimeout(()=>$("fq").focus(),0);if(t==="notes"){loadNotes();refreshTpl()}document.querySelector("main").classList.toggle("fill",t==="db");if(t==="hub")refreshNews();
+  if(t==="laws")setTimeout(()=>$("q").focus(),0);if(t==="faq")setTimeout(()=>$("fq").focus(),0);if(t==="notes"){loadNotes();refreshTpl()}document.querySelector("main").classList.toggle("fill",t==="db"||t==="laws");if(t==="hub")refreshNews();
 }
 document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>tab(b.dataset.t));
 
@@ -352,6 +390,7 @@ function pushKeys(){
 function renderKeys(){
   $("keys").innerHTML=KEYS_DEF.map(d=>`<div class="krow"><div class="kn">${esc(d.n)}<small>${esc(d.h)}</small></div><span class="kc ${listening===d.id?"listen":KEYS[d.id]?"":"empty"}">${listening===d.id?"Натисніть клавішу…":esc(keyLabel(KEYS[d.id]))}</span><div class="kb"><button data-kb="${d.id}">${listening===d.id?"Скасувати":"Змінити"}</button><button data-kc="${d.id}" ${KEYS[d.id]?"":"disabled"}>Очистити</button><button data-kr="${d.id}" ${KEYS[d.id]===d.d?"disabled":""}>Скинути</button></div></div>`).join("");
   $("clickKey").textContent=keyLabel(KEYS.click);
+  $("q").placeholder="Пошук за номером, назвою, описом або тегом"+(KEYS.search?" ("+KEYS.search+")":"");
 }
 function saveKeys(){store.set("gov.keys",JSON.stringify(KEYS));renderKeys();pushKeys();renderOvTools()}
 function loadKeys(){
@@ -377,7 +416,7 @@ document.addEventListener("keydown",e=>{
     const c=combo(e);if(!c){toast("Ця клавіша не підтримується");return}
     setKey(listening,c);return;
   }
-  if(KEYS.search&&combo(e)===KEYS.search){e.preventDefault();if(document.body.classList.contains("ov")){$("sq").focus();$("sq").select()}else{tab("laws");$("q").focus();$("q").select()}return}
+  if(KEYS.search&&combo(e)===KEYS.search){e.preventDefault();if(document.body.classList.contains("ov")){$("sq").focus();$("sq").select()}else{tab("laws");cview("catalog");$("q").focus();$("q").select()}return}
   if(e.key==="Escape"){
     const m=[...document.querySelectorAll(".modal:not(.hide)")].pop();
     if(m){m.classList.add("hide");if(m.id==="themeModal")pickTheme();return}
@@ -635,12 +674,13 @@ async function bootTauri(){
   const ev=window.__TAURI__.event;
   await invoke("set_game_exe",{name:G.exe});
   ev.listen("game-status",e=>{G.running=!!e.payload;renderGs()});
-  ev.listen("overlay-active",e=>{G.ov=!!e.payload;renderGs()});
+  ev.listen("overlay-active",e=>{G.ov=!!e.payload;renderGs();if(OVERLAY&&G.ov)toast(()=>"Оверлей активний. Лаунчер працює в треї"+(KEYS.toggle?". Показати / сховати: "+KEYS.toggle:""))});
   invoke("game_state").then(s=>{G.running=!!s.running;G.ov=!!s.overlay;renderGs()});
   ev.listen("boot-done",()=>{setTimeout(reveal,450);if(RESTORED)toast("Пошкоджені локальні файли відновлено")});
-  ev.listen("overlay-click",e=>{CLICK=!!e.payload;renderOvTools()});
+  ev.listen("overlay-click",e=>{CLICK=!!e.payload;renderOvTools();if(OVERLAY)toast(()=>CLICK?(KEYS.click?"Наскрізний режим увімкнено. Вимкнути: "+KEYS.click:"Наскрізний режим увімкнено. Вимкнути можна в треї"):"Наскрізний режим вимкнено")});
+  ev.listen("tray-hint",()=>{if(!OVERLAY)toast(()=>"Olymp Helper працює в треї. Відкрити: клік по іконці"+(KEYS.toggle?". Оверлей: "+KEYS.toggle:""))});
   ev.listen("win-flush",e=>document.body.classList.toggle("maxd",!!e.payload));
-  ev.listen("overlay-lock",e=>setLockUi(!!e.payload));
+  ev.listen("overlay-lock",e=>{const v=!!e.payload,ch=v!==ovLocked;setLockUi(v);if(OVERLAY&&ch)toast(v?"Позицію заблоковано":"Позицію розблоковано")});
   ev.listen("update-progress",e=>{const{got,total}=e.payload,pc=total?got/total*100:0;$("prog").value=pc;bp(22+pc*.7)});
   let rl=0;ev.listen("vault-changed",e=>{
     const{key,value,src}=e.payload;if(src===(OVERLAY?"overlay":"main"))return;
@@ -655,7 +695,8 @@ async function bootTauri(){
 // ---- оверлей: міні-панель (замок, наскрізний режим, прозорість), розумна прозорість ----
 let ovLocked=false,CLICK=false;
 function renderOvTools(){
-  for(const el of[$("spotBar"),$("spotBy"),document.querySelector(".spbrand")])if(el)el.toggleAttribute("data-tauri-drag-region",!ovLocked); // заблоковано: перетягування вимкнено
+  $("spotBy").toggleAttribute("data-tauri-drag-region",!ovLocked); // перетягування лише за бейдж «by Sanchos»; заблоковано: вимкнено
+  document.body.classList.toggle("locked",ovLocked);
   document.body.classList.toggle("ct",CLICK);
   if(SP&&SP.menu)spotRender();
 }
