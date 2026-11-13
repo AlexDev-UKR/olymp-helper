@@ -1,21 +1,41 @@
 html,body{height:100%;margin:0;background:transparent;overflow:hidden}
-body{font:14px/1.5 "Segoe UI Variable","Segoe UI",system-ui,sans-serif;color:#e6e9ed;-webkit-user-select:none;user-select:none}
-.card{position:fixed;inset:6px;display:grid;grid-template-rows:1fr auto;border-radius:18px;border:1px solid rgba(255,255,255,.06);
-  background:radial-gradient(120% 90% at 50% 0%,#151a21 0%,#0d1015 62%);animation:in .3s ease both;transition:opacity .4s ease,transform .4s ease}
-.center{display:grid;place-content:center;justify-items:center;gap:.3em;text-align:center;padding:0 24px}
-.logo{width:84px;height:84px;object-fit:contain;margin-bottom:.8em}
-h1{margin:0;font-size:20px;font-weight:600;letter-spacing:.01em}
-.sub{font-size:13px;color:#8a94a1}
-.bottom{padding:0 34px 26px;height:84px;display:grid;align-items:end}
+body{font:14px/1.5 "Segoe UI Variable","Segoe UI",system-ui,sans-serif;color:#e6e9ed;-webkit-user-select:none;user-select:none;--ease:cubic-bezier(.2,.7,.2,1)}
+*{-webkit-user-drag:none}
+.card{position:fixed;inset:6px;display:grid;grid-template-rows:1fr auto;overflow:hidden;border-radius:18px;border:1px solid rgba(255,255,255,.07);
+  background:radial-gradient(120% 90% at 50% 0%,#151a21 0%,#0d1015 62%);animation:cardin .7s var(--ease) both;transition:opacity .45s ease,transform .45s ease}
+/* повільне світіння на фоні */
+.aurora{position:absolute;inset:0;pointer-events:none;opacity:.9}
+.aurora i{position:absolute;width:70%;height:70%;border-radius:50%;background:radial-gradient(circle,rgba(196,160,90,.16),transparent 62%);animation:drift 11s ease-in-out infinite alternate}
+.aurora i:first-child{left:-15%;top:-25%}
+.aurora i:last-child{right:-20%;bottom:-35%;background:radial-gradient(circle,rgba(106,143,184,.12),transparent 62%);animation-duration:14s;animation-delay:-4s}
+.center{position:relative;display:grid;place-content:center;justify-items:center;gap:.3em;text-align:center;padding:0 24px}
+.logo-wrap{position:relative;width:84px;height:84px;margin-bottom:.9em;display:grid;place-items:center}
+.logo{width:84px;height:84px;object-fit:contain;animation:logoin .9s var(--ease) both}
+.ring{position:absolute;inset:6px;border-radius:50%;border:1px solid rgba(196,160,90,.5);opacity:0;animation:ring 2.8s ease-out infinite}
+.ring.r2{animation-delay:1.4s}
+h1{margin:0;font-size:20px;font-weight:600;letter-spacing:.01em;animation:up .7s var(--ease) .3s both}
+.sub{font-size:13px;color:#8a94a1;animation:up .7s var(--ease) .45s both}
+.bottom{position:relative;padding:0 34px 26px;height:84px;display:grid;align-items:end;animation:up .7s var(--ease) .6s both}
 .loading{display:grid;gap:10px}
 .loading.done{display:none}
 .st{text-align:center;font-size:12px;color:#8a94a1;min-height:1.5em}
-.track{height:2px;border-radius:2px;background:rgba(255,255,255,.07);overflow:hidden}
-.bar{height:100%;width:0;background:#c4a05a;border-radius:2px;transition:width .25s cubic-bezier(.2,.7,.2,1)}
-.go{justify-self:center;min-width:11em;font:inherit;font-weight:600;color:#1a1409;background:#c4a05a;border:1px solid #c4a05a;border-radius:10px;padding:.6em 2em;cursor:pointer;
-  animation:up .3s cubic-bezier(.2,.7,.2,1) both;transition:background-color .18s,transform .12s,opacity .2s}
-.go:hover{background:#d2b06c}.go:active{transform:translateY(1px)}.go:disabled{opacity:.6;cursor:default}
+.st.swap{animation:swap .3s var(--ease)}
+.track{position:relative;height:3px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden}
+.bar{position:relative;height:100%;width:0;background:linear-gradient(90deg,#a98a47,#c4a05a);border-radius:3px;transition:width .35s var(--ease);overflow:hidden}
+.bar::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);transform:translateX(-100%);animation:shimmer 1.3s linear infinite}
+.go{position:relative;justify-self:center;min-width:11em;font:inherit;font-weight:600;color:#1a1409;background:#c4a05a;border:1px solid #c4a05a;border-radius:10px;padding:.6em 2em;cursor:pointer;
+  animation:pop .45s var(--ease) both;transition:background-color .18s,transform .12s,opacity .2s}
+.go::after{content:"";position:absolute;inset:-1px;border-radius:10px;border:1px solid rgba(196,160,90,.7);animation:ping 1.8s ease-out .5s 2 both;pointer-events:none}
+.go:hover{background:#d2b06c;transform:translateY(-1px)}.go:active{transform:scale(.97)}.go:disabled{opacity:.6;cursor:default}
 .go:focus-visible{outline:2px solid #e6e9ed;outline-offset:2px}
 body.out .card{opacity:0;transform:scale(.97)}
-@keyframes in{from{opacity:0;transform:scale(.98)}}@keyframes up{from{opacity:0;transform:translateY(6px)}}
-@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@keyframes cardin{from{opacity:0;transform:scale(.97) translateY(8px)}}
+@keyframes logoin{from{opacity:0;transform:scale(.55) rotate(-10deg)}60%{transform:scale(1.06) rotate(1deg)}}
+@keyframes ring{0%{opacity:.55;transform:scale(.9)}100%{opacity:0;transform:scale(1.7)}}
+@keyframes up{from{opacity:0;transform:translateY(10px)}}
+@keyframes swap{from{opacity:0;transform:translateY(4px)}}
+@keyframes shimmer{to{transform:translateX(100%)}}
+@keyframes pop{from{opacity:0;transform:translateY(8px) scale(.94)}}
+@keyframes ping{from{opacity:.8;transform:scale(1)}to{opacity:0;transform:scale(1.18,1.5)}}
+@keyframes drift{to{transform:translate(8%,6%) scale(1.12)}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.ring{display:none}}

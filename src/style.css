@@ -369,9 +369,8 @@ button.done{background:rgba(106,160,131,.18);border-color:var(--grn);color:#a9dc
 .byline b{color:var(--tx);font-weight:600}
 .byline{cursor:grab}.byline:active{cursor:grabbing}body.locked .byline{cursor:default}
 .spot{position:relative;border-radius:22px;border:1px solid rgba(255,255,255,.09);color:var(--tx);overflow:hidden;
-  background:linear-gradient(180deg,rgba(32,37,44,calc(var(--ov)*.84)),rgba(13,16,20,calc(var(--ov)*.92)));
-  -webkit-backdrop-filter:blur(22px) saturate(150%);backdrop-filter:blur(22px) saturate(150%);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
+  background:linear-gradient(180deg,rgba(32,37,44,calc(var(--ov)*.92)),rgba(13,16,20,calc(var(--ov)*.96)));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
 
 .spgrid{display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:.9em;row-gap:.5em;align-items:center;padding:.7em .85em .7em 1em}
 .spbrand{display:flex;align-items:center;gap:.55em;font-weight:600;white-space:nowrap}
@@ -477,3 +476,33 @@ button.big.done{background:rgba(106,160,131,.22);border-color:var(--grn);color:#
 @keyframes tbar{to{transform:scaleX(0)}}
 .sptoasts{display:grid;gap:.4em;margin-top:.4em;justify-items:center}
 .sptoasts .tst{font-size:.9em;max-width:100%}
+
+/* ===== v1.2.10 ===== */
+/* повернуто правила, випадково видалені під час очищення: ручки зміни розміру й плаваючі кнопки */
+body.sysframe .rz,body.maxd .rz,body.pre .rz,body.web .rz,body.ov .rz{display:none!important}
+body.pre .fab,body.ov .fab{display:none}
+/* оверлей: зовнішня прозора область не реагує на мишу, інтерактивні лише плашка, бейдж і сповіщення */
+html.ovroot,body.ov,body.ov #spotWrap{pointer-events:none}
+body.ov .byline,body.ov .spot,body.ov .sptoasts .tst{pointer-events:auto}
+body.ov .byline{touch-action:none}
+body.ov .sptoasts .tst{-webkit-backdrop-filter:none;backdrop-filter:none}
+/* мікроанімації інтерфейсу */
+@property --rr{syntax:"<percentage>";inherits:false;initial-value:0%}
+button.rip{background-image:radial-gradient(circle at var(--rx,50%) var(--ry,50%),rgba(255,255,255,.24) var(--rr),transparent calc(var(--rr) + .6%));animation:rip .55s ease-out}
+@keyframes rip{from{--rr:0%}to{--rr:150%}}
+.ngrid>.ncard{animation:rise .5s var(--ease) both}
+.ngrid>.ncard:nth-child(2){animation-delay:.08s}.ngrid>.ncard:nth-child(3){animation-delay:.16s}.ngrid>.ncard:nth-child(4){animation-delay:.24s}
+.ngrid.fresh>.ncard{animation:fade .35s ease both}
+.nv .ic{transition:transform .25s var(--ease),color .18s,opacity .18s}
+.menu .nv:hover .ic{transform:translateX(2px) scale(1.08)}.nv.on .ic{transform:scale(1.1)}
+.art.sel .num{animation:pop .3s var(--ease)}
+.tot strong{display:inline-block}
+.tot strong.bump{animation:bump .42s var(--ease)}
+@keyframes bump{0%{transform:scale(.9);opacity:.45}60%{transform:scale(1.08)}100%{transform:none;opacity:1}}
+.cpane:not(.hide){animation:fade .22s ease both}
+.rcard{animation:rise .3s var(--ease) both}
+.spbody>.rcard:nth-child(2){animation-delay:.04s}.spbody>.rcard:nth-child(3){animation-delay:.08s}.spbody>.rcard:nth-child(4){animation-delay:.12s}
+.qa,.item{animation:fade .3s ease both}
+.rc{animation:fade .3s ease both}
+.ra{transition:background-color .15s,box-shadow .2s}
+@media(prefers-reduced-motion:reduce){button.rip,.ngrid>.ncard,.tot strong.bump,.art.sel .num,.rcard,.qa,.item,.rc,.cpane{animation:none!important}}

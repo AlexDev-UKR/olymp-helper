@@ -1,5 +1,11 @@
 const $ = id => document.getElementById(id);
-const set = (v, t) => { $("bar").style.width = Math.max(0, Math.min(100, v)) + "%"; if (t) $("st").textContent = t; };
+const set = (v, t) => {
+  $("bar").style.width = Math.max(0, Math.min(100, v)) + "%";
+  if (t && $("st").textContent !== t) { // плавна зміна рядка стану
+    $("st").textContent = t;
+    $("st").classList.remove("swap"); void $("st").offsetWidth; $("st").classList.add("swap");
+  }
+};
 let ready = false;
 function showGo() {
   if (ready) return;

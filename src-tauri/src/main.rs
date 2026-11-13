@@ -263,6 +263,13 @@ fn apply_overlay_state(app: AppHandle) {
     }
 }
 
+// Перетягування Spotlight Bar системним механізмом (плавно, без проміжної обробки в JS); не працює, коли позицію заблоковано
+#[tauri::command]
+fn spot_drag(app: AppHandle) {
+    if app.state::<Flags>().ov_locked.load(Ordering::Relaxed) { return; }
+    if let Some(w) = app.get_webview_window("overlay") { let _ = w.start_dragging(); }
+}
+
 // Spotlight Bar повідомляє потрібну висоту вмісту; вікно підлаштовується, щоб не перекривати зайвого
 #[tauri::command]
 fn spot_resize(app: AppHandle, h: f64) {
@@ -622,7 +629,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             toggle_overlay, show_overlay, stop_overlay, set_overlay_lock, set_overlay_ontop,
-            set_click_through, set_auto_overlay, set_close_mode, set_game_exe, game_state, set_keybinds, apply_overlay_state, spot_resize,
+            set_click_through, set_auto_overlay, set_close_mode, set_game_exe, game_state, set_keybinds, apply_overlay_state, spot_resize, spot_drag,
             set_autostart, pick_exe, open_url, app_version, check_update, install_update,
             vault_dump, vault_set, vault_del, finish_boot_cmd, boot_ready, boot_state, notice_ok, win_ctl, set_frame
         ])

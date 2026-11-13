@@ -29,6 +29,8 @@ const store={
   del(k){if(!TAURI){try{localStorage.removeItem(k)}catch(e){}return}delete MEM[k];invoke("vault_del",{key:k,src:OVERLAY?"overlay":"main"}).catch(()=>{})}
 };
 const parse=s=>{try{return s?JSON.parse(s):null}catch(e){return null}};
+// унікальний параметр запиту: джерело (GitHub) віддає свіжу копію, а не кеш CDN
+const bust=(u,ms)=>u+(u.includes("?")?"&":"?")+"t="+(ms>1?Math.floor(Date.now()/ms):Date.now());
 const later={};
 // відкладений запис для повзунків: не пишемо зашифрований файл на кожен піксель руху
 function setLater(k,v,ms=300){MEM[k]=v;clearTimeout(later[k]);later[k]=setTimeout(()=>store.set(k,v),ms)}
@@ -74,16 +76,16 @@ const CODES_URL=typeof DEFAULT_CODES_URL!=="undefined"?DEFAULT_CODES_URL:"";
 const TEMPLATES_URL=typeof DEFAULT_TEMPLATES_URL!=="undefined"?DEFAULT_TEMPLATES_URL:"";
 const validTpl=d=>!!d&&Array.isArray(d.templates);
 async function getManifest(){
-  try{const r=await fetch(MANIFEST_URL,{cache:"no-store"});if(r.ok){const m=await r.json();if(m&&typeof m==="object"){store.set("manifest.cache",JSON.stringify(m));return m}}}catch(e){}
+  try{const r=await fetch(bust(MANIFEST_URL,1),{cache:"no-store"});if(r.ok){const m=await r.json();if(m&&typeof m==="object"){store.set("manifest.cache",JSON.stringify(m));return m}}}catch(e){}
   return parse(store.get("manifest.cache"));
 }
 async function fetchCached(url,key,valid){
-  try{if(!url)throw 0;const r=await fetch(url,{cache:"no-store"});if(!r.ok)throw 0;const d=await r.json();if(!valid(d))throw 0;store.set(key,JSON.stringify(d));return{d,src:"net"}}catch(e){}
+  try{if(!url)throw 0;const r=await fetch(bust(url,1),{cache:"no-store"});if(!r.ok)throw 0;const d=await r.json();if(!valid(d))throw 0;store.set(key,JSON.stringify(d));return{d,src:"net"}}catch(e){}
   const d=parse(store.get(key));return valid(d)?{d,src:"cache"}:{d:null,src:"none"};
 }
 async function loadAll(manual,prog){
   const p=prog||(()=>{});
-  p(40,"Завантаження маніфесту…");MAN=await getManifest();if(MAN)applyManifest(MAN);
+  p(40,"Завантаження налаштувань…");MAN=await getManifest();if(MAN)applyManifest(MAN);
   p(55,"Завантаження бази законів…");
   const L=await fetchCached((MAN&&MAN.laws_url)||DEFAULT_LAWS_URL,"laws.cache",validLaws);
   applyDB(L.d||FALLBACK);setNet(L.src==="net");
@@ -107,7 +109,7 @@ function loadFromStore(){
 // ---- кодекси ----
 let DB=null,CATS=[],IDX=[];const sel=new Set(),opened=new Set();let inited=false;
 function applyDB(d){
-  DB=d;LIM=(d.limits&&+d.limits.max_jail_minutes)||60;
+  DB=d;SIG.laws=JSON.stringify(d);LIM=(d.limits&&+d.limits.max_jail_minutes)||60;
   CATS=(d.categories||[]).map(c=>({id:c.id,title:c.title,color:c.color||"",abbr:c.abbr||abbrOf(c.title),
     groups:[...(c.articles&&c.articles.length?[{title:"",articles:c.articles}]:[]),...(c.sections||[]).map(s=>({title:s.title||"",articles:s.articles||[]}))]}));
   if(!inited&&CATS.length){opened.add(CATS[0].id);inited=true}
@@ -156,8 +158,8 @@ function calc(){
   const jl=p.filter(a=>a.jail_minutes>0),noBail=jl.some(a=>!a.bail),bail=jl.reduce((s,a)=>s+(a.bail||0),0);
   // усі додаткові санкції вибраних статей одним списком, без повторів
   XS=[];const seen=new Set();for(const a of p)for(const x of xlist(a)){const k=x.toLowerCase();if(!seen.has(k)){seen.add(k);XS.push(x)}}
-  $("tf").textContent=f?fmt(f):(p.length?"—":"$0");$("tj").textContent=j+" хв";$("tw").textContent=w?"★".repeat(w):"—";
-  const tb=$("tb");tb.className=(!jl.length||noBail)?"no":"";tb.textContent=!jl.length?"—":noBail?"Немає":fmt(bail);
+  setTxt("tf",f?fmt(f):(p.length?"—":"$0"));setTxt("tj",j+" хв");setTxt("tw",w?"★".repeat(w):"—");
+  const tb=$("tb");tb.className=(!jl.length||noBail)?"no":"";setTxt("tb",!jl.length?"—":noBail?"Немає":fmt(bail));
   $("cAddedN").textContent=p.length;$("copySum").disabled=!p.length;$("clr").disabled=!p.length;renderAdded(p);
   $("txw").classList.toggle("hide",!XS.length);$("tx").innerHTML=XS.map(x=>`<span class="xchip">${esc(x)}</span>`).join("");
   $("jnote").textContent=raw>LIM?`КПЗ обмежено до ${LIM} хв (сума за статтями: ${raw} хв).`+(noBail?" Заставу не передбачено.":""):(noBail?"Серед обраних є стаття без права на заставу.":"");
@@ -207,6 +209,7 @@ $("mcopy").onclick=()=>copyBtn($("mcopy"),MIR);
 // ---- довідник (faq.json): розділи задаються полем category у кожному питанні ----
 let FAQ=[],FIDX=[],fcat="";const ftags=new Set();
 function applyFaq(d){
+  SIG.faq=d?JSON.stringify(d):"";
   FAQ=(d&&Array.isArray(d.items)?d.items:[]).map((i,n)=>({...i,id:String(i.id??n),tags:Array.isArray(i.tags)?i.tags.map(String):[],category:String(i.category||"").trim()||"Загальне"}));
   renderFaq();
 }
@@ -219,7 +222,7 @@ function renderFaq(){
   $("fcats").innerHTML=cats.length>1?[`<button class="ctab ${fcat?"":"on"}" data-cat="">Усі<span>${FAQ.length}</span></button>`,...cats.map(c=>`<button class="ctab ${c===fcat?"on":""}" data-cat="${esc(c)}">${esc(c)}<span>${FAQ.filter(i=>i.category===c).length}</span></button>`)].join(""):"";
   $("ftags").innerHTML=tags.map(t=>`<button class="chip ${ftags.has(t)?"on":""}" data-tag="${esc(t)}">${esc(t)}</button>`).join("");
   $("flist").innerHTML=cats.map(c=>`<div class="fh" data-ch="${esc(c)}">${esc(c)}</div>`+FAQ.filter(i=>i.category===c).map(qaHtml).join("")).join("")
-    +`<div class="empty" id="fempty" hidden>${FAQ.length?"Нічого не знайдено.":"Довідник порожній. Адміністрація додає питання у файл faq.json."}</div>`;
+    +`<div class="empty" id="fempty" hidden>${FAQ.length?"Нічого не знайдено.":"Довідник поки порожній."}</div>`;
   FIDX=FAQ.map(i=>({id:i.id,h:norm([i.question,i.answer,i.category,...i.tags].join(" ")),tags:i.tags,cat:i.category}));
   filterFaq();
 }
@@ -309,22 +312,13 @@ function applyTemplates(d){
   renderTplMenu();
 }
 function renderTplMenu(){
-  $("tplMenu").innerHTML=TPLS.length?TPLS.map((t,i)=>`<button role="menuitem" data-tpl="${i}"><b>${esc(t.title)}</b><small>${esc(t.text.split("\n").find(l=>l.trim())||"")}</small></button>`).join(""):'<div class="empty">Шаблонів немає. Адміністрація додає їх у templates.json.</div>';
+  $("tplMenu").innerHTML=TPLS.length?TPLS.map((t,i)=>`<button role="menuitem" data-tpl="${i}"><b>${esc(t.title)}</b><small>${esc(t.text.split("\n").find(l=>l.trim())||"")}</small></button>`).join(""):'<div class="empty">Шаблонів поки немає.</div>';
 }
 const closeTpl=()=>{$("tplMenu").classList.add("hide");$("ntplBtn").setAttribute("aria-expanded","false")};
 $("ntplBtn").onclick=()=>{const o=$("tplMenu").classList.toggle("hide");$("ntplBtn").setAttribute("aria-expanded",String(!o))};
 $("tplMenu").addEventListener("click",e=>{const b=e.target.closest("[data-tpl]");if(!b)return;const t=TPLS[+b.dataset.tpl];if(t){closeTpl();newNote(fillTpl(t.text),t.tags)}});
 document.addEventListener("click",e=>{if(!e.target.closest("#nsplit"))closeTpl()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeTpl()});
-async function refreshTpl(){
-  if(!MAN||!MAN.templates_url||!navigator.onLine)return;
-  try{
-    const u=MAN.templates_url+(MAN.templates_url.includes("?")?"&":"?")+"t="+Math.floor(Date.now()/30000);
-    const r=await fetch(u,{cache:"no-store"});if(!r.ok)return;
-    const d=await r.json();if(!validTpl(d)||JSON.stringify(d.templates)===tplSig)return;
-    store.set("templates.cache",JSON.stringify(d));applyTemplates(d);
-  }catch(e){}
-}
 
 // ---- вкладки, режими, оверлей ----
 const TABS=["hub","laws","db","faq","notes","set"];
@@ -349,7 +343,7 @@ function tab(t){
   TABS.forEach(x=>$(x).classList.toggle("hide",x!==t));
   document.querySelectorAll("[data-t]").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
   if(!document.body.classList.contains("ov")){moveInd();stagger(t)}
-  if(t==="laws")setTimeout(()=>$("q").focus(),0);if(t==="faq")setTimeout(()=>$("fq").focus(),0);if(t==="notes"){loadNotes();refreshTpl()}document.querySelector("main").classList.toggle("fill",t==="db"||t==="laws");if(t==="hub")refreshNews();
+  if(t==="laws")setTimeout(()=>$("q").focus(),0);if(t==="faq")setTimeout(()=>$("fq").focus(),0);if(t==="notes")loadNotes();document.querySelector("main").classList.toggle("fill",t==="db"||t==="laws");refreshFor(t);
 }
 document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>tab(b.dataset.t));
 
@@ -533,21 +527,10 @@ function setNews(items,smooth){
   if(NEWS.length&&NEWS.every(i=>dmy(i.date)!==null))NEWS.sort((a,b)=>dmy(b.date)-dmy(a.date));
   const box=$("news");
   if(smooth)box.style.minHeight=box.offsetHeight+"px"; // без стрибка верстки під час оновлення
-  box.innerHTML=NEWS.length?NEWS.slice(0,2).map(newsCard).join(""):'<div class="empty">Новини ще не опубліковано. Адміністрація додає їх у news.json.</div>';
+  box.innerHTML=NEWS.length?NEWS.slice(0,2).map(newsCard).join(""):'<div class="empty">Новини ще не опубліковано.</div>';
   $("newsMore").hidden=NEWS.length<=2;
   $("newsAll").innerHTML=NEWS.map(newsItem).join("");
   if(smooth){box.classList.add("fresh");setTimeout(()=>{box.style.minHeight="";box.classList.remove("fresh")},380)}
-}
-// «живі» новини: фонова перевірка news.json без перезапуску; інтерфейс змінюється лише коли дані справді змінилися
-async function refreshNews(){
-  if(!MAN||!MAN.news_url||!navigator.onLine)return;
-  try{
-    const u=MAN.news_url+(MAN.news_url.includes("?")?"&":"?")+"t="+Math.floor(Date.now()/30000);
-    const r=await fetch(u,{cache:"no-store"});if(!r.ok)return;
-    const d=await r.json();if(!validNews(d))return;
-    if(JSON.stringify(d.items)===newsSig)return;
-    store.set("news.cache",JSON.stringify(d));setNews(d.items,true);
-  }catch(e){}
 }
 function openNews(k){
   const n=NEWS[k];if(!n)return;
@@ -591,7 +574,7 @@ function applyManifest(m){
 }
 document.addEventListener("click",e=>{
   const b=e.target.closest("[data-u]");if(!b)return;const u=b.dataset.u;
-  if(!/^(https|mtasa):\/\//.test(u)){toast("Посилання ще не налаштоване адміністрацією");return}
+  if(!/^(https|mtasa):\/\//.test(u)){toast("Посилання ще не додано");return}
   TAURI?invoke("open_url",{url:u}):window.open(u,"_blank","noopener");
 });
 
@@ -599,6 +582,7 @@ document.addEventListener("click",e=>{
 let CODES=[],rart=null;const ropen=new Set(),AMAP=Object.create(null);
 const akey=(c,a)=>c.id+"::"+String(a.id??a.number);
 function applyCodes(d){
+  SIG.codes=d?JSON.stringify(d):"";
   CODES=(d&&Array.isArray(d.codes)?d.codes:[]).map(c=>({id:String(c.id),title:String(c.title||""),color:c.color||"",abbr:c.abbr||abbrOf(String(c.title||"")),updated:c.updated||"",
     groups:[...(c.articles&&c.articles.length?[{title:"",articles:c.articles}]:[]),...(c.sections||[]).map(s=>({title:s.title||"",articles:s.articles||[]}))]}));
   for(const k in AMAP)delete AMAP[k];
@@ -607,7 +591,7 @@ function applyCodes(d){
   renderReader();renderArticle();
 }
 function renderReader(){
-  if(!CODES.length){$("rlist").innerHTML='<div class="empty">Кодекси ще не опубліковано.</div>';$("rbody").innerHTML='<div class="empty">Адміністрація додає їх у файл codes.json.</div>';return}
+  if(!CODES.length){$("rlist").innerHTML='<div class="empty">Кодекси ще не опубліковано.</div>';$("rbody").innerHTML='<div class="empty">Тут з’явиться текст статті.</div>';return}
   const q=norm($("rq").value.trim()).split(/\s+/).filter(Boolean);let h="";
   for(const c of CODES){
     let n=0,inner="";
@@ -695,7 +679,6 @@ async function bootTauri(){
 // ---- оверлей: міні-панель (замок, наскрізний режим, прозорість), розумна прозорість ----
 let ovLocked=false,CLICK=false;
 function renderOvTools(){
-  $("spotBy").toggleAttribute("data-tauri-drag-region",!ovLocked); // перетягування лише за бейдж «by Sanchos»; заблоковано: вимкнено
   document.body.classList.toggle("locked",ovLocked);
   document.body.classList.toggle("ct",CLICK);
   if(SP&&SP.menu)spotRender();
@@ -915,9 +898,11 @@ function spotInit(){
   $("spot").classList.toggle("compact",SP.compact);
   $("sq").addEventListener("input",()=>{SP.hist=SP.menu=false;SP.act=0;spotRender();clearTimeout(SP.t);SP.t=setTimeout(()=>pushHist($("sq").value),1500)});
   $("sq").addEventListener("keydown",spotKey);
+  // перетягування лише за бейдж «by Sanchos»: системний механізм Windows запускається одразу при натисканні
+  $("spotBy").addEventListener("pointerdown",e=>{if(e.button!==0||ovLocked||!TAURI)return;e.preventDefault();invoke("spot_drag").catch(()=>{})});
   $("spTabs").addEventListener("click",e=>{
     const b=e.target.closest("[data-sp]");if(!b)return;
-    SP.mode=b.dataset.sp;SP.hist=SP.menu=false;SP.act=0;
+    SP.mode=b.dataset.sp;SP.hist=SP.menu=false;SP.act=0;refreshKind({laws:"laws",faq:"faq",notes:"templates",calc:"laws"}[SP.mode]);
     $("spTabs").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));spotRender();$("sq").focus();
   });
   $("spHist").onclick=()=>{SP.hist=!SP.hist;SP.menu=false;spotRender()};
@@ -928,6 +913,42 @@ function spotInit(){
   if(typeof ResizeObserver!=="undefined")new ResizeObserver(()=>{cancelAnimationFrame(SP.r);SP.r=requestAnimationFrame(spotFit)}).observe($("spotWrap"));
   spotRender();renderOvTools();spotFit();
 }
+
+// ---- свіжість даних: перевірка при запуску (loadAll) і щоразу, коли відкривається вкладка ----
+const SIG={laws:"",faq:"",codes:"",templates:""},LASTREF={};
+const KINDS={
+  news:{url:()=>MAN&&MAN.news_url,key:"news.cache",valid:validNews,cur:()=>newsSig,sig:d=>JSON.stringify(d.items),apply:d=>setNews(d.items,true)},
+  laws:{url:()=>(MAN&&MAN.laws_url)||DEFAULT_LAWS_URL,key:"laws.cache",valid:validLaws,cur:()=>SIG.laws,sig:d=>JSON.stringify(d),apply:d=>applyDB(d)},
+  faq:{url:()=>(MAN&&MAN.faq_url)||DEFAULT_FAQ_URL,key:"faq.cache",valid:validFaq,cur:()=>SIG.faq,sig:d=>JSON.stringify(d),apply:d=>applyFaq(d)},
+  codes:{url:()=>(MAN&&MAN.codes_url)||CODES_URL,key:"codes.cache",valid:validCodes,cur:()=>SIG.codes,sig:d=>JSON.stringify(d),apply:d=>applyCodes(d)},
+  templates:{url:()=>(MAN&&MAN.templates_url)||TEMPLATES_URL,key:"templates.cache",valid:validTpl,cur:()=>tplSig,sig:d=>JSON.stringify(d.templates),apply:d=>applyTemplates(d)}
+};
+async function refreshKind(kind,force){
+  const K=KINDS[kind],u=K&&K.url();
+  if(!u||!navigator.onLine)return;
+  const now=Date.now();if(!force&&now-(LASTREF[kind]||0)<15000)return; // не частіше за раз на 15 с для однієї вкладки
+  LASTREF[kind]=now;
+  try{
+    const r=await fetch(bust(u,1),{cache:"no-store"});if(!r.ok)return;
+    const d=await r.json();if(!K.valid(d)||K.sig(d)===K.cur())return; // нічого не змінилося: інтерфейс не чіпаємо
+    store.set(K.key,JSON.stringify(d));K.apply(d);if(SP)spotRender();
+  }catch(e){}
+}
+const TABDATA={hub:["news"],laws:["laws"],db:["codes"],faq:["faq"],notes:["templates"]};
+const refreshFor=t=>(TABDATA[t]||[]).forEach(k=>refreshKind(k));
+function refreshNews(){return refreshKind("news",true)}
+function refreshTpl(){return refreshKind("templates",true)}
+
+// ---- мікроанімації ----
+document.addEventListener("pointerdown",e=>{ // хвиля від натискання на основних кнопках
+  const b=e.target.closest&&e.target.closest("button.pri,button.big,.seg button,.donate,.ctab,.spb");
+  if(!b||b.disabled)return;
+  const r=b.getBoundingClientRect();
+  b.style.setProperty("--rx",(e.clientX-r.left)+"px");b.style.setProperty("--ry",(e.clientY-r.top)+"px");
+  b.classList.remove("rip");void b.offsetWidth;b.classList.add("rip");
+  clearTimeout(b._rp);b._rp=setTimeout(()=>b.classList.remove("rip"),600);
+},true);
+const setTxt=(id,v)=>{const e=$(id);if(e.textContent!==v){e.textContent=v;e.classList.remove("bump");void e.offsetWidth;e.classList.add("bump")}};
 
 // ---- завантажувач (bootstrapper): прогрес показує окреме вікно splash ----
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -965,7 +986,7 @@ function syncUi(){
 }
 function initUi(){
   syncUi();applyLinks(null);
-  if(OVERLAY)document.body.classList.add("ov");
+  if(OVERLAY){document.body.classList.add("ov");document.documentElement.classList.add("ovroot");document.querySelectorAll(".rz").forEach(e=>e.remove())}
   else{addEventListener("online",()=>loadAll(false));addEventListener("resize",moveInd);requestAnimationFrame(moveInd)}
   addEventListener("offline",()=>setNet(false));
 }
@@ -987,7 +1008,7 @@ async function main(){
   if(OVERLAY){loadNotes();loadFromStore();spotInit();return}
   loadNotes();
   let slow=0;setInterval(()=>{if(document.hidden)return;if(!$("hub").classList.contains("hide")||++slow%5===0)refreshNews()},60000);addEventListener("focus",()=>refreshNews());
-  if(RESTORED)bp(20,"Виявлено пошкоджені локальні файли. Відновлюємо…");
+  if(RESTORED)bp(20,"Відновлюємо збережені дані…");
   // 1. Оновлення застосунку (підписане): завантажується з прогресом, після встановлення застосунок перезапускається
   if(TAURI&&store.get("gov.autoupd")!=="0"&&navigator.onLine){
     bp(30,"Перевірка оновлень…");
