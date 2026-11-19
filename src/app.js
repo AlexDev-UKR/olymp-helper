@@ -113,7 +113,7 @@ function applyDB(d){
   CATS=(d.categories||[]).map(c=>({id:c.id,title:c.title,color:c.color||"",abbr:c.abbr||abbrOf(c.title),
     groups:[...(c.articles&&c.articles.length?[{title:"",articles:c.articles}]:[]),...(c.sections||[]).map(s=>({title:s.title||"",articles:s.articles||[]}))]}));
   if(!inited&&CATS.length){opened.add(CATS[0].id);inited=true}
-  $("ver").textContent=d.version;$("upd").textContent=d.updated_at;render();
+  $("ver").textContent=d.version;$("upd").textContent=d.updated_at;render();renderSets();
 }
 const all=()=>CATS.flatMap(c=>c.groups.flatMap(g=>g.articles.map(a=>({...a,cat:c.title,code:c.abbr,sec:g.title}))));
 const picked=()=>all().filter(a=>sel.has(a.id));
@@ -160,7 +160,7 @@ function calc(){
   XS=[];const seen=new Set();for(const a of p)for(const x of xlist(a)){const k=x.toLowerCase();if(!seen.has(k)){seen.add(k);XS.push(x)}}
   setTxt("tf",f?fmt(f):(p.length?"—":"$0"));setTxt("tj",j+" хв");setTxt("tw",w?"★".repeat(w):"—");
   const tb=$("tb");tb.className=(!jl.length||noBail)?"no":"";setTxt("tb",!jl.length?"—":noBail?"Немає":fmt(bail));
-  $("cAddedN").textContent=p.length;$("copySum").disabled=!p.length;$("clr").disabled=!p.length;renderAdded(p);
+  $("cAddedN").textContent=p.length;$("copySum").disabled=!p.length;$("clr").disabled=!p.length;$("saveSet").disabled=!p.length;renderAdded(p);
   $("txw").classList.toggle("hide",!XS.length);$("tx").innerHTML=XS.map(x=>`<span class="xchip">${esc(x)}</span>`).join("");
   $("jnote").textContent=raw>LIM?`КПЗ обмежено до ${LIM} хв (сума за статтями: ${raw} хв).`+(noBail?" Заставу не передбачено.":""):(noBail?"Серед обраних є стаття без права на заставу.":"");
   $("picked").textContent=p.length?"Обрано: "+p.map(a=>a.code+" "+a.number).join(", "):"Оберіть статті зі списку";
@@ -180,7 +180,7 @@ function renderAdded(p){
 }
 function cview(v){
   $("cseg").querySelectorAll("[data-cv]").forEach(b=>b.classList.toggle("on",b.dataset.cv===v));
-  $("paneAdded").classList.toggle("hide",v!=="added");$("paneCat").classList.toggle("hide",v!=="catalog");
+  $("paneAdded").classList.toggle("hide",v!=="added");$("paneCat").classList.toggle("hide",v!=="catalog");$("paneSets").classList.toggle("hide",v!=="sets");
   if(v==="catalog")setTimeout(()=>$("q").focus(),0);
 }
 $("cseg").addEventListener("click",e=>{const b=e.target.closest("[data-cv]");if(b)cview(b.dataset.cv)});
@@ -188,6 +188,48 @@ $("addedList").addEventListener("click",e=>{
   const go=e.target.closest("[data-cv]");if(go){cview(go.dataset.cv);return}
   const d=e.target.closest("[data-del]");if(d)toggle(d.dataset.del);
 });
+// ---- набори (макроси): збережені комбінації статей, що додаються одним кліком ----
+let SETS=[];
+const plStat=n=>{const a=n%10,b=n%100;return n+" "+(a===1&&b!==11?"статтю":(a>=2&&a<=4&&(b<12||b>14))?"статті":"статей")};
+function loadSets(){
+  const a=parse(store.get("gov.sets"));
+  SETS=(Array.isArray(a)?a:[]).filter(s=>s&&typeof s.name==="string"&&Array.isArray(s.ids)).slice(0,30).map(s=>({id:String(s.id),name:s.name.slice(0,32),ids:s.ids.map(String).slice(0,40)}));
+}
+function saveSets(){store.set("gov.sets",JSON.stringify(SETS));renderSets()}
+function renderSets(){
+  $("cSetsN").textContent=SETS.length;
+  const m=new Map(all().map(a=>[a.id,a]));
+  $("setsList").innerHTML=SETS.length?SETS.map(s=>{
+    const arts=s.ids.map(i=>m.get(i)).filter(Boolean),miss=s.ids.length-arts.length;
+    return `<div class="sitem" data-sid="${esc(s.id)}"><div class="sbody"><h3>${esc(s.name)}</h3><div class="cmeta">${arts.map(a=>mc(esc(a.code)+" "+esc(a.number))).join("")}${miss?mc(miss+" немає в базі","x"):""}</div></div><div class="sact"><button class="pri" data-sa="add">Додати набір</button><button data-sa="rep" title="Спершу очистити розрахунок">Замінити</button><button class="cdel" data-sa="del" aria-label="Видалити набір" title="Видалити">${TRASH}</button></div></div>`;
+  }).join(""):'<div class="cempty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/><path d="M18 15v4M16 17h4"/></svg><b>Наборів ще немає</b><p>Додайте статті до розрахунку й натисніть «Зберегти як набір». Типові комбінації (наприклад, для затримань) потім додаватимуться одним кліком.</p></div>';
+}
+function applySet(id,replace){
+  const s=SETS.find(x=>x.id===id);if(!s)return null;
+  const m=new Set(all().map(a=>a.id)),ok=s.ids.filter(i=>m.has(i));
+  if(replace)sel.clear();
+  ok.forEach(i=>sel.add(i));
+  if(OVERLAY)calc();else render();
+  return{name:s.name,ok:ok.length,miss:s.ids.length-ok.length};
+}
+function setToast(r){if(!r)return;toast(r.ok?`Набір «${r.name}»: додано ${plStat(r.ok)}`+(r.miss?`, ${r.miss} немає в базі`:""):`Набір «${r.name}»: статей немає в базі`)}
+function saveCurrentSet(name){
+  const p=picked();
+  if(!p.length){toast("Спершу оберіть статті");return false}
+  if(SETS.length>=30){toast("Досягнуто ліміт: 30 наборів");return false}
+  const n=String(name||"").trim().slice(0,32)||`Набір ${SETS.length+1}`;
+  SETS.push({id:"s"+Date.now().toString(36),name:n,ids:p.map(a=>a.id)});saveSets();toast(`Набір «${n}» збережено`);return true;
+}
+$("setsList").addEventListener("click",e=>{
+  const b=e.target.closest("[data-sa]"),card=e.target.closest("[data-sid]");if(!b||!card)return;
+  const id=card.dataset.sid,a=b.dataset.sa;
+  if(a==="del"){SETS=SETS.filter(s=>s.id!==id);saveSets();return}
+  const r=applySet(id,a==="rep");setToast(r);if(r&&r.ok)cview("added");
+});
+$("saveSet").onclick=()=>{$("saveBox").classList.toggle("hide");if(!$("saveBox").classList.contains("hide"))$("setName").focus()};
+$("setCancel").onclick=()=>{$("saveBox").classList.add("hide");$("setName").value=""};
+$("setSave").onclick=()=>{if(saveCurrentSet($("setName").value)){$("saveBox").classList.add("hide");$("setName").value="";cview("sets")}};
+$("setName").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("setSave").click()}});
 function toggle(id){
   sel.has(id)?sel.delete(id):sel.add(id);
   const el=document.querySelector(`.art[data-id="${CSS.escape(id)}"]`);
@@ -361,6 +403,7 @@ const KEYS_DEF=[
   {id:"click",n:"Наскрізний режим оверлею",h:"Глобальна: кліки проходять у гру",d:"Shift + F5",g:true},
   {id:"lock",n:"Замок позиції оверлею",h:"Глобальна: заблокувати / розблокувати",d:"",g:true},
   {id:"stop",n:"Вимкнути оверлей",h:"Глобальна",d:"",g:true},
+  {id:"quick",n:"Швидка нотатка",h:"Глобальна: відкриває поле швидкої нотатки в оверлеї",d:"",g:true},
   {id:"search",n:"Пошук по законах",h:"Лише у вікні застосунку",d:"Ctrl + K",g:false}];
 const KEYS={};KEYS_DEF.forEach(k=>KEYS[k.id]=k.d);
 let listening=null;
@@ -456,11 +499,16 @@ document.querySelectorAll(".rz").forEach(el=>el.addEventListener("pointerdown",e
 }));
 
 // ---- теми ----
+// фірмова палітра Olymp: сонячний жовтий → помаранчевий → корал → малиновий → винний
+const BRAND={sun:"#FFC93C",orange:"#FF8A3D",coral:"#F5546A",rasp:"#D6336C",wine:"#8E1B4A"};
+const BRAND_GRAD=`linear-gradient(120deg,${BRAND.sun} 0%,${BRAND.orange} 30%,${BRAND.coral} 62%,${BRAND.rasp} 82%,${BRAND.wine} 100%)`;
+const BRAND_BTN=`linear-gradient(120deg,${BRAND.sun},${BRAND.orange} 55%,${BRAND.coral})`;
+const LEGACY_ACC=["#c4a05a","#d4ab4a"]; // колишній золотий акцент: з маніфесту більше не перекриває фірмовий стиль
 const PRESETS=[
   {id:"p-tac",name:"Tactical Night",ac:"#8fa56b",p:"#141a16",r:6},
   {id:"p-state",name:"State Dark",ac:"#6a8fb8",p:"#151a23",r:8},
   {id:"p-em",name:"Emerald Ops",ac:"#4fa383",p:"#121a19",r:12},
-  {id:"p-olymp",name:"Olymp Default",ac:"#c4a05a",p:"#151a21",r:10}];
+  {id:"p-olymp",name:"Olymp Sunset",ac:"#FF8A3D",p:"#171419",r:10,brand:true}];
 const HEX=/^#[0-9a-f]{6}$/i;
 const hex2=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
 const mix=(h,t,a)=>{const x=hex2(h),y=hex2(t);return "#"+x.map((v,i)=>Math.round(v+(y[i]-v)*a).toString(16).padStart(2,"0")).join("")};
@@ -470,6 +518,8 @@ function applyTheme(t){
   s.setProperty("--ac",t.ac);s.setProperty("--acx",lum(t.ac)>.6?"#14110a":"#f4f1ea");
   s.setProperty("--l2",t.p);s.setProperty("--l1",mix(t.p,"#000000",.25));s.setProperty("--l3",mix(t.p,"#ffffff",.05));
   s.setProperty("--bg",bg);s.setProperty("--bgrgb",hex2(bg).join(","));s.setProperty("--r",t.r+"px");
+  if(t.brand){s.setProperty("--grad",BRAND_GRAD);s.setProperty("--grad-btn",BRAND_BTN);s.setProperty("--acx","#2a0d12")}
+  else{s.removeProperty("--grad");s.removeProperty("--grad-btn")} // для інших тем градієнт виводиться з акценту (стилі)
 }
 let THEMES=[],THEME="p-olymp";
 const allThemes=()=>[...PRESETS,...THEMES];
@@ -480,12 +530,13 @@ function loadThemes(){
 }
 function pickTheme(){
   const t=allThemes().find(x=>x.id===THEME)||PRESETS[3];
-  // колір акценту з manifest.json діє лише доки гравець сам не обрав тему
-  const acc2=!store.get("gov.theme")&&MAN&&MAN.theme&&HEX.test(MAN.theme.accent||"")?MAN.theme.accent:t.ac;
-  applyTheme({...t,ac:acc2});renderThemes();
+  // власний колір акценту з маніфесту діє лише доки гравець не обрав тему; золотий «старий» акцент ігнорується
+  const ma=MAN&&MAN.theme&&HEX.test(MAN.theme.accent||"")&&!LEGACY_ACC.includes(MAN.theme.accent.toLowerCase())?MAN.theme.accent:null;
+  const acc2=!store.get("gov.theme")&&ma?ma:t.ac;
+  applyTheme({...t,ac:acc2,brand:!!t.brand&&acc2===t.ac});renderThemes();
 }
 function renderThemes(){
-  const b=t=>`<button class="theme ${t.id===THEME?"on":""}" data-id="${esc(t.id)}" style="--c:${t.ac};--p:${t.p}"><i></i>${esc(t.name)}</button>`;
+  const b=t=>`<button class="theme ${t.id===THEME?"on":""}" data-id="${esc(t.id)}" style="--c:${t.ac};--p:${t.p}${t.brand?`;--g:${BRAND_GRAD}`:""}"><i></i>${esc(t.name)}</button>`;
   $("themes").innerHTML=PRESETS.map(b).join("");
   $("cthemes").innerHTML=THEMES.map(t=>b(t)+`<button class="del" data-del="${esc(t.id)}" aria-label="Видалити тему ${esc(t.name)}">×</button>`).join("")||'<span class="note">Власних тем ще немає</span>';
   $("newTheme").disabled=THEMES.length>=5;$("themeCnt").textContent=`(${THEMES.length} з 5)`;
@@ -662,6 +713,7 @@ async function bootTauri(){
   invoke("game_state").then(s=>{G.running=!!s.running;G.ov=!!s.overlay;renderGs()});
   ev.listen("boot-done",()=>{setTimeout(reveal,450);if(RESTORED)toast("Пошкоджені локальні файли відновлено")});
   ev.listen("overlay-click",e=>{CLICK=!!e.payload;renderOvTools();if(OVERLAY)toast(()=>CLICK?(KEYS.click?"Наскрізний режим увімкнено. Вимкнути: "+KEYS.click:"Наскрізний режим увімкнено. Вимкнути можна в треї"):"Наскрізний режим вимкнено")});
+  ev.listen("spot-quick",()=>{if(OVERLAY&&SP){spView("quick");spotRender()}});
   ev.listen("tray-hint",()=>{if(!OVERLAY)toast(()=>"Olymp Helper працює в треї. Відкрити: клік по іконці"+(KEYS.toggle?". Оверлей: "+KEYS.toggle:""))});
   ev.listen("win-flush",e=>document.body.classList.toggle("maxd",!!e.payload));
   ev.listen("overlay-lock",e=>{const v=!!e.payload,ch=v!==ovLocked;setLockUi(v);if(OVERLAY&&ch)toast(v?"Позицію заблоковано":"Позицію розблоковано")});
@@ -671,6 +723,7 @@ async function bootTauri(){
     if(value===null)delete MEM[key];else MEM[key]=value;
     if(OVERLAY&&(key.startsWith("gov.")||key==="laws.cache"||key==="faq.cache"||key==="manifest.cache")){clearTimeout(rl);rl=setTimeout(()=>location.reload(),300)}
     else if(key==="notes.cache"&&!dirty)loadNotes();
+    else if(key==="gov.sets"){loadSets();renderSets()}
   });
   invoke("app_version").then(v=>{APPV=v;$("appv").textContent="v"+v;$("setv").textContent="v"+v;verCheck()});
   pushState();
@@ -707,7 +760,7 @@ $("smart").onchange=e=>store.set("gov.smart",e.target.checked?"1":"0");
 $("bgop").oninput=e=>{$("bgopv").textContent=e.target.value;setLater("gov.bgop",e.target.value)};
 
 // ---- профілі налаштувань: експорт / імпорт текстовим кодом ----
-const P_KEYS=["theme","themes","op","bgop","smart","ontop","ovpos","ovlock","keys","fz","frame","close"];
+const P_KEYS=["theme","themes","op","bgop","smart","ontop","ovpos","ovlock","keys","sets","fz","frame","close"];
 const b64e=u8=>{let s="";u8.forEach(b=>s+=String.fromCharCode(b));return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")};
 const b64d=s=>{s=s.replace(/-/g,"+").replace(/_/g,"/");while(s.length%4)s+="=";return Uint8Array.from(atob(s),c=>c.charCodeAt(0))};
 const pipeBytes=async(u8,S)=>new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new S("deflate-raw"))).arrayBuffer());
@@ -744,6 +797,13 @@ function sanitize(o){ // код від іншої людини вважаєть�
   for(const k of["smart","ontop","ovlock"])if(k in o){if(!["0","1"].includes(String(o[k])))bad("Невірний параметр");r[k]=String(o[k])}
   if("frame" in o){if(!["custom","system"].includes(o.frame))bad("Невірна рамка вікна");r.frame=o.frame}
   if("close" in o){if(!["tray","exit"].includes(o.close))bad("Невірна поведінка закриття");r.close=o.close}
+  if("sets" in o){
+    const a=parse(o.sets);if(!Array.isArray(a)||a.length>30)bad("Невірні набори статей");
+    r.sets=JSON.stringify(a.map(s=>{
+      if(!s||typeof s.name!=="string"||!Array.isArray(s.ids)||s.ids.length>40||!s.ids.every(i=>/^[\w.:\-]{1,40}$/.test(String(i))))bad("Невірний набір статей");
+      return{id:/^[\w-]{1,24}$/.test(String(s.id))?String(s.id):"s"+Math.random().toString(36).slice(2,8),name:s.name.slice(0,32),ids:s.ids.map(String)};
+    }));
+  }
   if("ovpos" in o){const g=parse(o.ovpos);if(!g||!isInt(g.x,-20000,20000)||!isInt(g.y,-20000,20000))bad("Невірне положення оверлею");r.ovpos=JSON.stringify({x:+g.x,y:+g.y})}
   if("keys" in o){
     const k=parse(o.keys);if(!k||typeof k!=="object")bad("Невірні бінди");const out={};
@@ -799,6 +859,7 @@ function noRes(q){
 }
 function calcHtml(q){
   const p=picked();let h="";
+  if(SETS.length)h+=`<div class="spsets"><span>Набори</span>${SETS.map(s=>`<button class="spb ghost" data-set="${esc(s.id)}" title="Додати набір одним кліком">${esc(s.name)} <small>${s.ids.length}</small></button>`).join("")}</div>`;
   if(p.length){
     calc();
     h+=`<div class="spchips">${p.map(a=>`<span class="spchip">${esc(a.code)} ${esc(a.number)}<button data-rm="${esc(a.id)}" aria-label="Прибрати статтю">×</button></span>`).join("")}</div>`;
@@ -806,7 +867,8 @@ function calcHtml(q){
     if(XS.length)h+=`<div class="xline"><b>Додатково</b>${XS.map(spChip).join("")}</div>`;
     if($("jnote").textContent)h+=`<div class="sphint">${esc($("jnote").textContent)}</div>`;
     h+=`<div class="ract"><button class="spb" data-act="copysum">Скопіювати підсумок</button><span class="okmark">✓ Скопійовано!</span><button class="spb ghost" data-act="clear">Скинути</button></div>`;
-  }else if(!q)h+=`<div class="sphint">Додайте статті кнопкою «+ У калькулятор» у вкладці «Закони» або знайдіть їх тут.</div>`;
+    h+=`<div class="spsave"><input type="text" id="spSetName" maxlength="32" placeholder="Назва набору" aria-label="Назва набору"><button class="spb ghost" data-act="saveset">Зберегти як набір</button></div>`;
+  }else if(!q&&!SETS.length)h+=`<div class="sphint">Додайте статті кнопкою «+ У калькулятор» у вкладці «Закони» або знайдіть їх тут.</div>`;
   if(q){
     SP.items=lawsFound(q).slice(0,8);
     h+=SP.items.map((a,i)=>`<div class="rcard ${i===SP.act?"act":""}" data-i="${i}"><div class="rt"><b>${esc(a.code)} — Стаття ${esc(a.number)}</b><span>${esc(a.title)}</span></div><div class="ract"><button class="spb" data-act="add">${sel.has(a.id)?"✓ Додано":"+ Додати"}</button></div></div>`).join("")||`<div class="sphint">Нічого не знайдено.</div>`;
@@ -823,10 +885,13 @@ function menuHtml(){
 function histHtml(){
   return HIST.length?HIST.map(h=>`<button class="sphist" data-h="${esc(h)}"><span>${esc(h)}</span></button>`).join("")+`<div class="ract"><button class="spb ghost" data-act="hclear">Очистити історію</button></div>`:'<div class="sphint">Історія пошуку порожня.</div>';
 }
+function spView(v){SP.menu=v==="menu";SP.hist=v==="hist";SP.clip=v==="clip";SP.quick=v==="quick"}
 function spotRender(){
   const q=$("sq").value.trim();let html="";SP.items=[];
   if(SP.menu)html=menuHtml();
   else if(SP.hist)html=histHtml();
+  else if(SP.clip){SP.items=CLIP;html=clipHtml()}
+  else if(SP.quick){SP.items=QN;html=quickHtml()}
   else if(SP.mode==="laws"){if(q){SP.items=lawsFound(q);html=SP.items.length?SP.items.map(lawCard).join(""):noRes(q)}}
   else if(SP.mode==="faq"){if(q){SP.items=faqFound(q);html=SP.items.length?SP.items.map(faqCard).join(""):noRes(q)}}
   else if(SP.mode==="notes"){
@@ -834,6 +899,32 @@ function spotRender(){
     html=SP.items.length?SP.items.map(noteCard).join(""):(q?noRes(q):'<div class="sphint">Нотаток поки немає. Створіть їх у лаунчері.</div>');
   }else html=calcHtml(q);
   $("spBody").innerHTML=html;$("spPanel").classList.toggle("open",!!html);
+  for(const[id,k]of[["spHist","hist"],["spGear","menu"],["spClip","clip"],["spQuick","quick"]])$(id).classList.toggle("on",!!SP[k]);
+  if(SP.quick){const i=$("qnIn");if(i){i.value=SP.qnDraft;setTimeout(()=>i.focus(),0)}}
+}
+// ---- історія буфера обміну (лише тексти, скопійовані через оверлей) ----
+let CLIP=[],QN=[];
+const ago=t=>{const m=Math.floor((Date.now()-t)/60000);return m<1?"щойно":m<60?m+" хв тому":m<1440?Math.floor(m/60)+" год тому":new Date(t).toLocaleDateString("uk-UA")};
+function loadClip(){const a=parse(store.get("gov.clip"));CLIP=(Array.isArray(a)?a:[]).filter(c=>c&&typeof c.t==="string").slice(0,10).map(c=>({t:c.t.slice(0,4000),at:+c.at||Date.now()}))}
+function clipPush(text){
+  text=String(text||"");if(!text.trim())return;
+  CLIP=[{t:text.slice(0,4000),at:Date.now()},...CLIP.filter(c=>c.t!==text)].slice(0,10);
+  store.set("gov.clip",JSON.stringify(CLIP));
+}
+function clipHtml(){
+  if(!CLIP.length)return'<div class="sphint">Історія буфера порожня. Тут зберігаються тексти, скопійовані через оверлей.</div>';
+  return CLIP.map((c,i)=>`<div class="rcard" data-i="${i}"><div class="spans clipt" data-act="expand">${esc(c.t)}</div><div class="ract"><button class="spb" data-act="reclip">Копіювати знову</button><span class="okmark">✓ Скопійовано!</span><button class="spb ghost" data-act="clip2qn">У швидку нотатку</button><small class="cago">${esc(ago(c.at))}</small><button class="cdel" data-act="clipdel" aria-label="Видалити з історії">×</button></div></div>`).join("")+`<div class="ract"><button class="spb ghost" data-act="clipclear">Очистити історію буфера</button></div>`;
+}
+// ---- швидкі нотатки на плашці ----
+function loadQn(){const a=parse(store.get("gov.qn"));QN=(Array.isArray(a)?a:[]).filter(n=>n&&typeof n.t==="string").slice(0,12).map(n=>({id:String(n.id),t:n.t.slice(0,200),at:+n.at||Date.now()}))}
+function qnSave(){store.set("gov.qn",JSON.stringify(QN))}
+function qnAdd(text){
+  text=String(text||"").trim().slice(0,200);if(!text)return false;
+  QN=[{id:"q"+Date.now().toString(36),t:text,at:Date.now()},...QN].slice(0,12);qnSave();return true;
+}
+function quickHtml(){
+  const rows=QN.map((n,i)=>`<div class="qnrow" data-i="${i}"><span class="qnt">${esc(n.t)}</span><small class="cago">${esc(ago(n.at))}</small><button class="spb ghost" data-act="qncopy">Копіювати</button><span class="okmark">✓ Скопійовано!</span><button class="spb ghost" data-act="qn2note">У нотатки</button><button class="cdel" data-act="qndel" aria-label="Видалити">×</button></div>`).join("");
+  return `<div class="qnbox"><input type="text" id="qnIn" maxlength="200" placeholder="Жетон, номер авто, сума… Enter — зберегти" autocomplete="off" aria-label="Швидка нотатка"><button class="spb brand" data-act="qnadd">Додати</button></div>`+(rows||'<div class="sphint">Швидких нотаток поки немає. Запишіть жетон, номер авто чи суму й натисніть Enter.</div>');
 }
 function pushHist(q){
   q=String(q||"").trim();if(q.length<2)return;
@@ -841,6 +932,7 @@ function pushHist(q){
 }
 async function spotCopy(btn,text){
   try{await navigator.clipboard.writeText(text)}catch(e){toast("Не вдалося скопіювати");return}
+  clipPush(text);
   const mark=btn.parentElement&&btn.parentElement.querySelector(".okmark");
   if(mark){mark.classList.add("show");clearTimeout(mark._t);mark._t=setTimeout(()=>mark.classList.remove("show"),1600)}
 }
@@ -852,19 +944,30 @@ function spotClick(e){
     else if(k==="click")toggleClick();
     else if(k==="top"){$("ontop").checked=!$("ontop").checked;$("ontop").dispatchEvent(new Event("change"));spotRender()}
     else if(k==="compact"){SP.compact=!SP.compact;$("spot").classList.toggle("compact",SP.compact);store.set("gov.spotc",SP.compact?"1":"0");spotRender()}
-    else if(k==="hide"){SP.menu=false;spotRender();overlay()}
+    else if(k==="hide"){spView(null);spotRender();overlay()}
     else if(k==="stop"){if(TAURI)invoke("stop_overlay")}
     return;
   }
+  const st=e.target.closest("[data-set]");
+  if(st){const r=applySet(st.dataset.set,false);setToast(r);spotRender();return}
   const gt=e.target.closest("[data-gt]");
   if(gt){SP.mode=gt.dataset.gt;$("spTabs").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.sp===SP.mode));spotRender();return}
   const hh=e.target.closest("[data-h]");
-  if(hh){$("sq").value=hh.dataset.h;SP.hist=false;spotRender();$("sq").focus();return}
+  if(hh){$("sq").value=hh.dataset.h;spView(null);spotRender();$("sq").focus();return}
   const rm=e.target.closest("[data-rm]");
   if(rm){sel.delete(rm.dataset.rm);calc();spotRender();return}
   const a=e.target.closest("[data-act]");if(!a)return;
-  const card=a.closest(".rcard"),it=card?SP.items[+card.dataset.i]:null,act=a.dataset.act;
+  const card=a.closest(".rcard,.qnrow"),it=card?SP.items[+card.dataset.i]:null,act=a.dataset.act;
   if(act==="expand"){a.classList.toggle("full");return}
+  if(act==="saveset"){if(saveCurrentSet($("spSetName").value))spotRender();return}
+  if(act==="clipclear"){CLIP=[];store.set("gov.clip","[]");spotRender();return}
+  if(act==="clipdel"&&it){CLIP=CLIP.filter(c=>c!==it);store.set("gov.clip",JSON.stringify(CLIP));spotRender();return}
+  if(act==="reclip"&&it){spotCopy(a,it.t);return}
+  if(act==="clip2qn"&&it){qnAdd(it.t);toast("Додано у швидкі нотатки");return}
+  if(act==="qnadd"){const i=$("qnIn");if(qnAdd(i.value)){SP.qnDraft="";spotRender()}return}
+  if(act==="qncopy"&&it){spotCopy(a,it.t);return}
+  if(act==="qn2note"&&it){NOTES.unshift({id:Date.now().toString(36),text:it.t,tags:[],updated:Date.now()});saveNotes();toast("Збережено в нотатках");return}
+  if(act==="qndel"&&it){QN=QN.filter(n=>n!==it);qnSave();spotRender();return}
   if(act==="hclear"){HIST=[];store.set("gov.shist","[]");spotRender();return}
   if(act==="clear"){sel.clear();calc();spotRender();return}
   if(act==="copysum"){spotCopy(a,sumText());return}
@@ -876,7 +979,7 @@ function spotClick(e){
 }
 function spotKey(e){
   const n=SP.items.length;
-  if((e.key==="ArrowDown"||e.key==="ArrowUp")&&n&&!SP.menu&&!SP.hist){
+  if((e.key==="ArrowDown"||e.key==="ArrowUp")&&n&&!SP.menu&&!SP.hist&&!SP.clip&&!SP.quick){
     e.preventDefault();SP.act=(SP.act+(e.key==="ArrowDown"?1:-1)+n)%n;
     $("spBody").querySelectorAll(".rcard").forEach((c,i)=>c.classList.toggle("act",i===SP.act));
     const c=$("spBody").querySelectorAll(".rcard")[SP.act];if(c&&c.scrollIntoView)c.scrollIntoView({block:"nearest"});
@@ -888,26 +991,30 @@ function spotKey(e){
 }
 function spotEsc(){ // Esc: спершу закриває меню/історію, потім очищає пошук, потім ховає оверлей
   if(!SP)return false;
-  if(SP.menu||SP.hist){SP.menu=SP.hist=false;spotRender();return true}
+  if(SP.menu||SP.hist||SP.clip||SP.quick){spView(null);spotRender();return true}
   if($("sq").value){$("sq").value="";SP.act=0;spotRender();return true}
   return false;
 }
 function spotInit(){
   HIST=(()=>{const h=parse(store.get("gov.shist"));return Array.isArray(h)?h.map(String).slice(0,8):[]})();
-  SP={mode:"laws",hist:false,menu:false,act:0,items:[],h:0,r:0,t:0,compact:store.get("gov.spotc")==="1"};
+  SP={mode:"laws",hist:false,menu:false,clip:false,quick:false,qnDraft:"",act:0,items:[],h:0,r:0,t:0,compact:store.get("gov.spotc")==="1"};
   $("spot").classList.toggle("compact",SP.compact);
-  $("sq").addEventListener("input",()=>{SP.hist=SP.menu=false;SP.act=0;spotRender();clearTimeout(SP.t);SP.t=setTimeout(()=>pushHist($("sq").value),1500)});
+  $("sq").addEventListener("input",()=>{spView(null);SP.act=0;spotRender();clearTimeout(SP.t);SP.t=setTimeout(()=>pushHist($("sq").value),1500)});
   $("sq").addEventListener("keydown",spotKey);
   // перетягування лише за бейдж «by Sanchos»: системний механізм Windows запускається одразу при натисканні
   $("spotBy").addEventListener("pointerdown",e=>{if(e.button!==0||ovLocked||!TAURI)return;e.preventDefault();invoke("spot_drag").catch(()=>{})});
   $("spTabs").addEventListener("click",e=>{
     const b=e.target.closest("[data-sp]");if(!b)return;
-    SP.mode=b.dataset.sp;SP.hist=SP.menu=false;SP.act=0;refreshKind({laws:"laws",faq:"faq",notes:"templates",calc:"laws"}[SP.mode]);
+    SP.mode=b.dataset.sp;spView(null);SP.act=0;refreshKind({laws:"laws",faq:"faq",notes:"templates",calc:"laws"}[SP.mode]);
     $("spTabs").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));spotRender();$("sq").focus();
   });
-  $("spHist").onclick=()=>{SP.hist=!SP.hist;SP.menu=false;spotRender()};
-  $("spGear").onclick=()=>{SP.menu=!SP.menu;SP.hist=false;spotRender()};
+  $("spHist").onclick=()=>{spView(SP.hist?null:"hist");spotRender()};
+  $("spGear").onclick=()=>{spView(SP.menu?null:"menu");spotRender()};
+  $("spClip").onclick=()=>{spView(SP.clip?null:"clip");spotRender()};
+  $("spQuick").onclick=()=>{spView(SP.quick?null:"quick");spotRender()};
   $("spBody").addEventListener("click",spotClick);
+  $("spBody").addEventListener("input",e=>{if(e.target.id==="qnIn")SP.qnDraft=e.target.value});
+  $("spBody").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.id==="qnIn"){e.preventDefault();if(qnAdd(e.target.value)){SP.qnDraft="";spotRender()}}else if(e.key==="Enter"&&e.target.id==="spSetName"){e.preventDefault();if(saveCurrentSet(e.target.value))spotRender()}});
   $("spBody").addEventListener("input",e=>{const r=e.target.closest('[data-m="op"]');if(r)setOverlayOpacity(r.value)});
   addEventListener("focus",()=>$("sq").focus());
   if(typeof ResizeObserver!=="undefined")new ResizeObserver(()=>{cancelAnimationFrame(SP.r);SP.r=requestAnimationFrame(spotFit)}).observe($("spotWrap"));
@@ -967,7 +1074,7 @@ async function preload(){
 function syncUi(){
   document.querySelectorAll("[data-tg]").forEach(e=>e.dataset.u=TG_URL);
   if(!TAURI)document.body.classList.add("web");
-  loadKeys();
+  loadKeys();loadSets();loadClip();loadQn();
   const o=store.get("gov.op");if(o){$("op").value=o;$("op").oninput({target:$("op")})}
   const f=store.get("gov.fz");if(f){$("fz").value=f;$("fz").oninput({target:$("fz")})}
   loadThemes();pickTheme();

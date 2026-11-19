@@ -20,7 +20,7 @@ const SPOT_W: f64 = 620.0;
 
 struct Game { exe: Mutex<String>, running: AtomicBool }
 #[derive(Clone)]
-struct KeysCfg { toggle: String, click: String, lock: String, stop: String }
+struct KeysCfg { toggle: String, click: String, lock: String, stop: String, quick: String }
 struct Keys(Mutex<KeysCfg>);
 struct VaultState(vault::Vault);
 struct Flags {
@@ -139,12 +139,22 @@ fn apply(app: &AppHandle) {
     }
 }
 
+// Швидка нотатка: показує оверлей і просить Spotlight відкрити поле швидкої нотатки
+fn quick_note(app: &AppHandle) {
+    if !app.state::<Flags>().overlay_active.load(Ordering::Relaxed) { show_main(app); return; }
+    if let Some(w) = app.get_webview_window("overlay") {
+        if !w.is_visible().unwrap_or(false) { apply(app); }
+    }
+    let _ = app.emit("spot-quick", ());
+}
+
 fn run_action(app: &AppHandle, name: &str) {
     match name {
         "toggle" => toggle(app),
         "click" => toggle_click(app),
         "lock" => toggle_lock(app),
         "stop" => do_stop_overlay(app),
+        "quick" => quick_note(app),
         _ => {}
     }
 }
@@ -158,7 +168,7 @@ fn sync_hotkey(app: &AppHandle) -> Vec<String> {
     let active = app.state::<Flags>().overlay_active.load(Ordering::Relaxed);
     let mut bad = Vec::new();
     let mut seen: Vec<String> = Vec::new();
-    for (name, sc) in [("toggle", k.toggle), ("click", k.click), ("lock", k.lock), ("stop", k.stop)] {
+    for (name, sc) in [("toggle", k.toggle), ("click", k.click), ("lock", k.lock), ("stop", k.stop), ("quick", k.quick)] {
         if sc.is_empty() { continue; }
         if Shortcut::from_str(&sc).is_err() || seen.contains(&sc) { bad.push(name.to_string()); continue; }
         seen.push(sc.clone());
@@ -302,7 +312,7 @@ fn set_auto_overlay(app: AppHandle, enabled: bool) {
 #[tauri::command]
 fn set_keybinds(app: AppHandle, keys: serde_json::Value) -> Vec<String> {
     let g = |k: &str| keys.get(k).and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
-    *app.state::<Keys>().0.lock().unwrap() = KeysCfg { toggle: g("toggle"), click: g("click"), lock: g("lock"), stop: g("stop") };
+    *app.state::<Keys>().0.lock().unwrap() = KeysCfg { toggle: g("toggle"), click: g("click"), lock: g("lock"), stop: g("stop"), quick: g("quick") };
     let bad = sync_hotkey(&app);
     rebuild_tray(&app);
     bad
@@ -502,7 +512,7 @@ fn main() {
         .plugin(guard_plugin())
         .manage(Game { exe: Mutex::new(String::new()), running: AtomicBool::new(false) })
         // бінди порожні, доки інтерфейс не передасть актуальні значення з налаштувань користувача
-        .manage(Keys(Mutex::new(KeysCfg { toggle: String::new(), click: String::new(), lock: String::new(), stop: String::new() })))
+        .manage(Keys(Mutex::new(KeysCfg { toggle: String::new(), click: String::new(), lock: String::new(), stop: String::new(), quick: String::new() })))
         .manage(Flags::new())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())

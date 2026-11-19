@@ -1,4 +1,4 @@
-:root{color-scheme:dark;--bg:#0b0e12;--l1:#10141a;--l2:#151a21;--l3:#1b212a;--bgrgb:11,14,18;--b1:rgba(255,255,255,.05);--b2:rgba(255,255,255,.09);--b3:rgba(255,255,255,.17);--tx:#e6e9ed;--mut:#8a94a1;--ac:#c4a05a;--acx:#14110a;--red:#b9544e;--grn:#6aa083;--blu:#6a8fb8;--amb:#d1a24f;--ov:1;--bgop:.55;--banner:url("banner.svg");--fs:15px;--r:10px;--r2:calc(var(--r)*.7);--ease:cubic-bezier(.2,.7,.2,1)}
+:root{color-scheme:dark;--bg:#0b0e12;--l1:#10141a;--l2:#151a21;--l3:#1b212a;--bgrgb:11,14,18;--b1:rgba(255,255,255,.05);--b2:rgba(255,255,255,.09);--b3:rgba(255,255,255,.17);--tx:#e6e9ed;--mut:#8a94a1;--ac:#FF8A3D;--acx:#2a0d12;--red:#b9544e;--grn:#6aa083;--blu:#6a8fb8;--amb:#d1a24f;--ov:1;--bgop:.55;--banner:url("banner.svg");--fs:15px;--r:10px;--r2:calc(var(--r)*.7);--ease:cubic-bezier(.2,.7,.2,1)}
 *{box-sizing:border-box}
 ::selection{background:rgba(196,160,90,.28)}
 ::-webkit-scrollbar{width:12px;height:12px}::-webkit-scrollbar-track{background:transparent}
@@ -506,3 +506,43 @@ button.rip{background-image:radial-gradient(circle at var(--rx,50%) var(--ry,50%
 .rc{animation:fade .3s ease both}
 .ra{transition:background-color .15s,box-shadow .2s}
 @media(prefers-reduced-motion:reduce){button.rip,.ngrid>.ncard,.tot strong.bump,.art.sel .num,.rcard,.qa,.item,.rc,.cpane{animation:none!important}}
+
+/* ===== v1.2.11: фірмовий стиль Olymp Sunset (жовтий → помаранчевий → корал → малиновий → винний) ===== */
+:root{--grad:linear-gradient(120deg,color-mix(in srgb,var(--ac) 72%,#fff),var(--ac) 55%,color-mix(in srgb,var(--ac) 70%,#000));--grad-btn:linear-gradient(120deg,color-mix(in srgb,var(--ac) 82%,#fff),var(--ac))}
+button.pri,button.big{background:var(--grad-btn);border-color:transparent;color:var(--acx)}
+button.pri:hover,button.big:hover{background:var(--grad-btn);border-color:transparent;filter:brightness(1.08);box-shadow:0 6px 22px color-mix(in srgb,var(--ac) 38%,transparent)}
+button.pri:disabled{filter:grayscale(.55) brightness(.8);box-shadow:none}
+button.pri.done,button.big.done{background:rgba(106,160,131,.22);border-color:var(--grn);color:#b2e3c8;filter:none}
+.nav-ind{background:none}
+.nav-ind::after{content:"";position:absolute;inset:0;border-radius:inherit;background:var(--grad);opacity:.15}
+.nav-ind::before{background:var(--grad)}
+.seg button.on,.ctab.on{position:relative}
+.seg button.on::after,.ctab.on::after{content:"";position:absolute;left:16%;right:16%;bottom:1px;height:2px;border-radius:2px;background:var(--grad)}
+.chip.on{background:var(--grad-btn);border-color:transparent;color:var(--acx)}
+.fab-b:hover,.donate:hover{background:var(--grad-btn);color:var(--acx);border-color:transparent}
+.tg.on{background:var(--grad-btn)}
+.theme i{background:var(--g,linear-gradient(135deg,var(--p) 50%,var(--c) 50%))}
+/* Spotlight: активні елементи й фокус у фірмовому градієнті */
+.sptabs button.on{border-color:transparent;color:#fff;background:linear-gradient(#191c22,#191c22) padding-box,var(--grad) border-box}
+.spsearch input:focus{border-color:transparent;background:linear-gradient(#12151a,#12151a) padding-box,var(--grad) border-box}
+.rcard.act{border-color:transparent;background:linear-gradient(#20242b,#20242b) padding-box,var(--grad) border-box}
+.spb[data-act="copy"],.spb[data-act="copysum"],.spb[data-act="qnadd"],.spb.brand{background:var(--grad-btn);color:var(--acx);border-color:transparent;font-weight:600}
+.spb[data-act="copy"]:hover,.spb[data-act="copysum"]:hover,.spb[data-act="qnadd"]:hover,.spb.brand:hover{background:var(--grad-btn);filter:brightness(1.08)}
+.byline b{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.spi.on{background:color-mix(in srgb,var(--ac) 22%,transparent);color:var(--tx)}
+.spm input[type=range]{accent-color:var(--ac)}
+/* набори статей */
+.sitem{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.8em;align-items:center;padding:.8em .9em;margin-bottom:.5em;border-radius:calc(var(--r)*1.1);background:var(--l2);border:1px solid var(--b1);transition:border-color .2s var(--ease),box-shadow .25s var(--ease);animation:rise .3s var(--ease) both}
+.sitem:hover{border-color:var(--b3);box-shadow:var(--glow)}
+.sbody{min-width:0}.sbody h3{font-size:1em;margin-bottom:.35em}
+.sact{display:flex;gap:.4em;align-items:center}.sact button:not(.cdel){padding:.35em .8em;font-size:.9em}
+.savebox{display:grid;gap:.5em;padding:.7em;border-radius:var(--r2);background:var(--bg);border:1px solid var(--b2);animation:rise .25s var(--ease)}
+/* Spotlight: набори, буфер обміну, швидкі нотатки */
+.spsets{display:flex;flex-wrap:wrap;gap:.35em;align-items:center}.spsets>span{color:var(--mut);font-size:.82em;margin-right:.2em}.spsets small{opacity:.7;margin-left:.2em}
+.spsave,.qnbox{display:flex;gap:.4em}
+.spsave input,.qnbox input{flex:1;min-width:0;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:.4em .75em;color:var(--tx);font:inherit}
+.spsave input:focus,.qnbox input:focus{outline:0;border-color:transparent;background:linear-gradient(#12151a,#12151a) padding-box,var(--grad) border-box}
+.clipt{white-space:pre-wrap}.cago{color:var(--mut);margin-left:auto}
+.qnrow{display:flex;flex-wrap:wrap;align-items:center;gap:.45em;padding:.45em .6em;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);animation:rise .25s var(--ease) both}
+.qnt{flex:1 1 8em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.spbody .cdel{width:1.9em;height:1.9em;font-size:1.05em}
