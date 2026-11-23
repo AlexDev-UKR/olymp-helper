@@ -1,1 +1,23 @@
-{ "bundle": { "createUpdaterArtifacts": true } }
+{
+  "bundle": {
+    "createUpdaterArtifacts": true,
+    "publisher": "Olymp Helper",
+    "copyright": "© 2026 Olymp Helper | Author: Sanchos",
+    "category": "Utility",
+    "shortDescription": "Помічник для гравців державних фракцій Olymp RP",
+    "longDescription": "Olymp Helper: калькулятор покарань, кодекси та закони, довідник, нотатки й оверлей для гри.",
+    "windows": {
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com",
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "Ukrainian"
+        ],
+        "displayLanguageSelector": false,
+        "headerImage": "installer/header.bmp",
+        "sidebarImage": "installer/sidebar.bmp"
+      }
+    }
+  }
+}

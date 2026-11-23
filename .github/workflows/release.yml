@@ -1,18 +1,79 @@
 name: Release
+
+# Випуск: git tag v1.2.12 && git push origin v1.2.12
+# Збирає інсталятор NSIS, підписує оновлення (та, за наявності сертифіката, сам .exe), створює реліз і latest.json.
 on:
   push:
     tags: ["v*"]
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: windows-latest
-    permissions:
-      contents: write
+    timeout-minutes: 60
+    env:
+      OLYP_TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+        with:
+          node-version: 20
+
       - uses: dtolnay/rust-toolchain@stable
-      - run: npm install
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      - name: Перевірка версій (package.json, Cargo.toml, tauri.conf.json, тег)
+        run: node scripts/check-version.mjs "${{ github.ref_name }}"
+
+      - name: Залежності
+        shell: pwsh
+        run: |
+          if (Test-Path package-lock.json) { npm ci } else { npm install }
+
+      - name: Нотатки релізу з docs/release-notes
+        id: notes
+        shell: pwsh
+        run: |
+          $f = "docs/release-notes/$env:OLYP_TAG.md"
+          $body = if (Test-Path $f) { Get-Content $f -Raw -Encoding utf8 } else { "Список змін буде додано пізніше." }
+          $d = "EOF_" + [guid]::NewGuid().ToString("N")
+          "body<<$d" >> $env:GITHUB_OUTPUT
+          $body >> $env:GITHUB_OUTPUT
+          $d >> $env:GITHUB_OUTPUT
+
+      - name: Конфігурація збірки (підпис коду, якщо задано сертифікат)
+        id: cfg
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $cfg = Get-Content src-tauri/tauri.release.json -Raw | ConvertFrom-Json
+          if ($env:WINDOWS_CERTIFICATE) {
+            $pfx = Join-Path $env:RUNNER_TEMP "codesign.pfx"
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+            $pw = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+            $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $pw
+            Remove-Item $pfx -Force
+            $cfg.bundle.windows | Add-Member -NotePropertyName certificateThumbprint -NotePropertyValue $cert.Thumbprint -Force
+            "signed=true" >> $env:GITHUB_OUTPUT
+            Write-Host "Підпис коду: увімкнено"
+          } else {
+            "signed=false" >> $env:GITHUB_OUTPUT
+            Write-Host "Підпис коду: сертифікат не задано, збірка без підпису Authenticode"
+          }
+          $cfg | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.release.generated.json -Encoding utf8
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -22,13 +83,37 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Olymp Helper ${{ github.ref_name }}"
-          releaseBody: "Список змін — у цьому описі. Він показується гравцям у повідомленні про оновлення."
-          args: --config src-tauri/tauri.release.json
-      - name: Єдиний інсталятор зі сталою назвою
+          releaseBody: ${{ steps.notes.outputs.body }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          args: --config src-tauri/tauri.release.generated.json
+
+      - name: Інсталятор зі сталою назвою, контрольні суми, перевірка підпису
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $f = Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1
-          Copy-Item $f.FullName "Olymp-Helper-Setup.exe"
-          gh release upload "${{ github.ref_name }}" "Olymp-Helper-Setup.exe" --clobber
+          $setup = Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1
+          if (-not $setup) { throw "Інсталятор NSIS не знайдено" }
+          Copy-Item $setup.FullName "Olymp-Helper-Setup.exe"
+          $lines = @()
+          foreach ($f in @($setup.FullName, (Resolve-Path "Olymp-Helper-Setup.exe").Path)) {
+            $h = (Get-FileHash $f -Algorithm SHA256).Hash.ToLower()
+            $lines += "$h  $(Split-Path $f -Leaf)"
+          }
+          $lines | Set-Content SHA256SUMS.txt -Encoding utf8
+          Get-Content SHA256SUMS.txt
+          $sig = Get-AuthenticodeSignature "Olymp-Helper-Setup.exe"
+          Write-Host "Authenticode: $($sig.Status)"
+          gh release upload "$env:OLYP_TAG" Olymp-Helper-Setup.exe SHA256SUMS.txt --clobber
+
+      - name: Перевірка складу релізу (оновлення працюватимуть)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $names = gh release view "$env:OLYP_TAG" --json assets --jq ".assets[].name"
+          $names
+          foreach ($need in @("latest.json", "Olymp-Helper-Setup.exe", "SHA256SUMS.txt")) {
+            if ($names -notcontains $need) { throw "У релізі немає файлу $need" }
+          }
+          if (-not ($names | Where-Object { $_ -like "*-setup.exe.sig" })) { throw "У релізі немає підпису оновлення (.sig)" }

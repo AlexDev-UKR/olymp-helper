@@ -7,11 +7,12 @@ const set = (v, t) => {
   }
 };
 let ready = false;
+document.addEventListener("keydown", e => { if (ready && (e.key === "Enter" || e.key === " ") && !$("go").disabled) { e.preventDefault(); $("go").click(); } });
 function showGo() {
   if (ready) return;
   ready = true; set(100);
   $("loading").classList.add("done");
-  $("go").hidden = false; $("go").focus();
+  $("go").hidden = false; // фокус не ставимо: без зайвої обводки; Enter / пробіл працюють через обробник нижче
 }
 if (window.__TAURI__) {
   const { listen } = window.__TAURI__.event, invoke = window.__TAURI__.core.invoke;

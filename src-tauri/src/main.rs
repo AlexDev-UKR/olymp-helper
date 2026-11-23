@@ -25,14 +25,14 @@ struct Keys(Mutex<KeysCfg>);
 struct VaultState(vault::Vault);
 struct Flags {
     overlay_active: AtomicBool, auto_overlay: AtomicBool, close_tray: AtomicBool, boot_ready: AtomicBool,
-    on_top: AtomicBool, click_through: AtomicBool, ov_locked: AtomicBool, flush: AtomicBool, spot_h: AtomicU32,
+    on_top: AtomicBool, click_through: AtomicBool, ov_locked: AtomicBool, flush: AtomicBool, spot_h: AtomicU32, restore_main: AtomicBool,
 }
 impl Flags {
     fn new() -> Self {
         Flags {
             overlay_active: AtomicBool::new(false), auto_overlay: AtomicBool::new(false), close_tray: AtomicBool::new(true),
             boot_ready: AtomicBool::new(false), on_top: AtomicBool::new(true), click_through: AtomicBool::new(false),
-            ov_locked: AtomicBool::new(false), flush: AtomicBool::new(false), spot_h: AtomicU32::new(200),
+            ov_locked: AtomicBool::new(false), flush: AtomicBool::new(false), spot_h: AtomicU32::new(200), restore_main: AtomicBool::new(false),
         }
     }
 }
@@ -51,11 +51,16 @@ fn show_main(app: &AppHandle) {
         let _ = w.set_always_on_top(true); // «на передній план»
         let _ = w.set_focus();
         let _ = w.set_always_on_top(false);
+        app.state::<Flags>().restore_main.store(false, Ordering::Relaxed);
+        let _ = app.emit("main-shown", ()); // інтерфейс плавно з'являється (fade-in)
     }
 }
 
 fn hide_main(app: &AppHandle) {
-    if let Some(w) = app.get_webview_window("main") { let _ = w.hide(); }
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.hide();
+        let _ = app.emit("main-hidden", ()); // інтерфейс готується до наступної плавної появи
+    }
 }
 
 // Вікно вважається «притиснутим до країв», якщо воно розгорнуте або прилипло до країв екрана:
@@ -153,7 +158,7 @@ fn run_action(app: &AppHandle, name: &str) {
         "toggle" => toggle(app),
         "click" => toggle_click(app),
         "lock" => toggle_lock(app),
-        "stop" => do_stop_overlay(app),
+        "stop" => do_stop_overlay(app, true),
         "quick" => quick_note(app),
         _ => {}
     }
@@ -202,9 +207,12 @@ fn set_overlay_active(app: &AppHandle, on: bool) {
     rebuild_tray(app);
 }
 
-fn do_stop_overlay(app: &AppHandle) {
+// manual = true: оверлей вимкнув користувач (кнопка, меню трею, гаряча клавіша). Тоді лаунчер, який згорнувся
+// у трей під час запуску оверлею, плавно повертається. Автоматичне вимкнення (закрилась гра) вікно не чіпає.
+fn do_stop_overlay(app: &AppHandle, manual: bool) {
     if let Some(w) = app.get_webview_window("overlay") { let _ = w.hide(); }
     set_overlay_active(app, false);
+    if manual && app.state::<Flags>().restore_main.swap(false, Ordering::Relaxed) { show_main(app); }
 }
 
 fn toggle(app: &AppHandle) {
@@ -234,13 +242,15 @@ fn restore_overlay(app: &AppHandle) {
 
 #[tauri::command]
 fn show_overlay(app: AppHandle) {
+    let main_visible = app.get_webview_window("main").map(|w| w.is_visible().unwrap_or(false)).unwrap_or(false);
+    if main_visible { app.state::<Flags>().restore_main.store(true, Ordering::Relaxed); }
     set_overlay_active(&app, true);
     apply(&app);
     hide_main(&app); // лаунчер згортається в трей і працює у фоні
 }
 
 #[tauri::command]
-fn stop_overlay(app: AppHandle) { do_stop_overlay(&app) }
+fn stop_overlay(app: AppHandle) { do_stop_overlay(&app, true) }
 
 #[tauri::command]
 fn toggle_overlay(app: AppHandle) {
@@ -558,7 +568,7 @@ fn main() {
                     "open" => show_main(app),
                     "toggle" => toggle(app),
                     "click" => toggle_click(app),
-                    "stop" => do_stop_overlay(app),
+                    "stop" => do_stop_overlay(app, true),
                     "quit" => app.exit(0),
                     _ => {}
                 })
@@ -583,7 +593,7 @@ fn main() {
                                 set_overlay_active(&h, true);
                                 apply(&h);
                             } else {
-                                do_stop_overlay(&h);
+                                do_stop_overlay(&h, false);
                             }
                         }
                     }
@@ -619,7 +629,7 @@ fn main() {
                         // коротке сповіщення «працює в треї», потім вікно ховається
                         let _ = w.emit("tray-hint", ());
                         let ww = w.clone();
-                        thread::spawn(move || { thread::sleep(Duration::from_millis(1400)); let _ = ww.hide(); });
+                        thread::spawn(move || { thread::sleep(Duration::from_millis(1400)); let _ = ww.hide(); let _ = ww.emit("main-hidden", ()); });
                     } else {
                         w.app_handle().exit(0);
                     }

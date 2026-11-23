@@ -546,3 +546,27 @@ button.pri.done,button.big.done{background:rgba(106,160,131,.22);border-color:va
 .qnrow{display:flex;flex-wrap:wrap;align-items:center;gap:.45em;padding:.45em .6em;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);animation:rise .25s var(--ease) both}
 .qnt{flex:1 1 8em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
 .spbody .cdel{width:1.9em;height:1.9em;font-size:1.05em}
+
+/* ===== v1.2.12 ===== */
+/* смужка меню: невидима, доки не отримала правильну позицію */
+.nav-ind:not(.ready){visibility:hidden}
+/* сповіщення лівіше від плаваючих кнопок і над усіма шарами */
+.fab{z-index:30}
+.toasts{right:4.9em;bottom:3.3em;z-index:90}
+/* кодекси: вільне виділення тексту, підсвічування збігів, копіювання пунктів */
+.sel-ok,.sel-ok *{-webkit-user-select:text;user-select:text}
+.sel-ok{cursor:text}
+.sel-ok button,.sel-ok .badge,.sel-ok .tag{-webkit-user-select:none;user-select:none;cursor:pointer}
+.sel-ok *::selection{background:color-mix(in srgb,var(--ac) 42%,transparent);color:inherit}
+mark{background:color-mix(in srgb,var(--ac) 40%,transparent);color:inherit;border-radius:3px;padding:0 1px}
+.ra small.snip{display:block;margin-top:.15em;color:var(--mut);font-size:.82em;line-height:1.4;font-weight:400}
+.rright .dt{white-space:normal}
+.ptl{position:relative;display:block;padding:.12em 2.4em .12em 0;line-height:1.7}
+.ptl.pt{padding-left:.2em}
+.pgap{height:.6em}
+.ptc{position:absolute;right:0;top:.2em;width:1.9em;height:1.9em;padding:0;display:grid;place-items:center;opacity:0;border-radius:var(--r2);background:var(--l3);border-color:var(--b2);color:var(--mut);transition:opacity .15s,background-color .15s,color .15s}
+.ptc svg{width:1.1em;height:1.1em}
+.ptl:hover .ptc,.ptc:focus-visible{opacity:1}
+.ptc:hover{color:var(--tx)}
+.ptc.done{opacity:1;color:#9fdcb8;border-color:var(--grn);background:rgba(106,160,131,.2)}
+.ptc.done svg{display:none}.ptc.done::after{content:"✓";font-weight:700}

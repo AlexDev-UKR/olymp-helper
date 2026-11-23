@@ -25,9 +25,11 @@ h1{margin:0;font-size:20px;font-weight:600;letter-spacing:.01em;animation:up .7s
 .bar::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);transform:translateX(-100%);animation:shimmer 1.3s linear infinite}
 .go{position:relative;justify-self:center;min-width:11em;font:inherit;font-weight:600;color:#2a0d12;background:linear-gradient(120deg,#FFC93C,#FF8A3D 55%,#F5546A);border:1px solid transparent;border-radius:10px;padding:.6em 2em;cursor:pointer;
   animation:pop .45s var(--ease) both;transition:background-color .18s,transform .12s,opacity .2s}
-.go::after{content:"";position:absolute;inset:-1px;border-radius:10px;border:1px solid rgba(255,138,61,.75);animation:ping 1.8s ease-out .5s 2 both;pointer-events:none}
 .go:hover{filter:brightness(1.08);transform:translateY(-1px)}.go:active{transform:scale(.97)}.go:disabled{opacity:.6;cursor:default}
-.go:focus-visible{outline:2px solid #e6e9ed;outline-offset:2px}
+.go{outline:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+.go:focus{outline:none}
+.go:focus-visible{outline:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.5)} /* лише для клавіатури, без другої рамки */
+.go::-moz-focus-inner{border:0}
 body.out .card{opacity:0;transform:scale(.97)}
 @keyframes cardin{from{opacity:0;transform:scale(.97) translateY(8px)}}
 @keyframes logoin{from{opacity:0;transform:scale(.55) rotate(-10deg)}60%{transform:scale(1.06) rotate(1deg)}}

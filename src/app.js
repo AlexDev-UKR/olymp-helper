@@ -55,6 +55,19 @@ function toast(msg,type){
 }
 const fmt=n=>"$"+Number(n||0).toLocaleString("uk-UA");
 const norm=s=>String(s??"").toLowerCase().replace(/[’ʼ'`]/g,"");
+// підсвічування збігів пошуку: розрізняє апострофи, не залежить від регістру, текст завжди екранується
+const escRe=s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+const tokRe=t=>t.split("").map(escRe).join("[’ʼ'`]?");
+function hlHtml(text,ts){
+  text=String(text??"");if(!ts||!ts.length)return esc(text);
+  const re=new RegExp("("+ts.map(tokRe).join("|")+")","gi");let out="",last=0,m;
+  while((m=re.exec(text))){if(!m[0])break;out+=esc(text.slice(last,m.index))+"<mark>"+esc(m[0])+"</mark>";last=m.index+m[0].length}
+  return out+esc(text.slice(last));
+}
+async function copyMini(btn,text){ // мала кнопка: після копіювання на мить показує галочку
+  try{await navigator.clipboard.writeText(text)}catch(e){toast("Не вдалося скопіювати");return}
+  btn.classList.add("done");clearTimeout(btn._t);btn._t=setTimeout(()=>btn.classList.remove("done"),1300);
+}
 async function copyBtn(btn,text){
   try{await navigator.clipboard.writeText(text)}catch(e){toast("Не вдалося скопіювати");return}
   if(!btn)return;
@@ -368,16 +381,20 @@ function stagger(sec){
   const el=$(sec);if(!el)return;el.classList.remove("stg");void el.offsetWidth;
   [...el.children].forEach((c,i)=>c.style.setProperty("--i",Math.min(i,9)));el.classList.add("stg");
 }
-function moveInd(){ // ковзна акцентна смуга активного пункту меню
-  const a=document.querySelector(".menu .nv.on"),ind=$("navInd");if(!a||!ind||!a.offsetHeight)return;
+function moveInd(){ // ковзна акцентна смужка активного пункту меню
+  const nav=document.querySelector("nav"),a=document.querySelector(".menu .nv.on"),ind=$("navInd");
+  // позицію рахуємо лише коли розмітка вже має розміри (приховане вікно її не має)
+  if(!nav||!a||!ind||!nav.offsetHeight||!a.offsetHeight||a.offsetParent!==nav)return;
+  const first=!ind.classList.contains("ready");
   ind.style.setProperty("--y",a.offsetTop+"px");ind.style.height=a.offsetHeight+"px";
-  if(!ind.classList.contains("ready"))requestAnimationFrame(()=>ind.classList.add("ready"));
+  if(first){void ind.offsetWidth;ind.classList.add("ready")} // перший показ без «їзди» з кута: спершу позиція, потім видимість
 }
+function scheduleInd(){moveInd();requestAnimationFrame(moveInd);setTimeout(moveInd,120);setTimeout(moveInd,500)}
 function reveal(){ // плавна поява інтерфейсу після екрана завантаження
   document.body.classList.remove("pre");
   if(OVERLAY)return;
   [...document.querySelectorAll("nav>*:not(.nav-ind)")].forEach((el,i)=>el.style.setProperty("--n",i));
-  document.body.classList.add("intro");moveInd();
+  document.body.classList.add("intro");scheduleInd();
   stagger(TABS.find(x=>!$(x).classList.contains("hide"))||"hub");
   setTimeout(()=>document.body.classList.remove("intro"),1800);
 }
@@ -641,6 +658,13 @@ function applyCodes(d){
   if(!AMAP[rart]){const c=CODES.find(x=>x.groups.some(g=>g.articles.length));rart=c?akey(c,c.groups.find(g=>g.articles.length).articles[0]):null;if(c)ropen.add(c.id)}
   renderReader();renderArticle();
 }
+function snipHtml(a,ts){ // фрагмент тексту навколо збігу, якщо збіг не в назві
+  const tx=String(a.text??a.description??"");if(!tx||!ts.length)return"";
+  if(ts.every(w=>norm(a.title+" "+a.number).includes(w)))return"";
+  const m=new RegExp(ts.map(tokRe).join("|"),"i").exec(tx);if(!m)return"";
+  const s=Math.max(0,m.index-28),e=Math.min(tx.length,m.index+m[0].length+60);
+  return `<small class="snip">${s>0?"…":""}${hlHtml(tx.slice(s,e).replace(/\s+/g," "),ts)}${e<tx.length?"…":""}</small>`;
+}
 function renderReader(){
   if(!CODES.length){$("rlist").innerHTML='<div class="empty">Кодекси ще не опубліковано.</div>';$("rbody").innerHTML='<div class="empty">Тут з’явиться текст статті.</div>';return}
   const q=norm($("rq").value.trim()).split(/\s+/).filter(Boolean);let h="";
@@ -651,7 +675,7 @@ function renderReader(){
       for(const a of g.articles){
         const t=norm([a.number,a.title,a.text,a.description,a.note,...(a.tags||[])].join(" "));
         if(!q.every(w=>t.includes(w)))continue;n++;const k=akey(c,a);
-        sec+=`<button class="ra ${k===rart?"on":""}" data-k="${esc(k)}"><b>${esc(a.number)}</b><span>${esc(a.title)}</span></button>`;
+        sec+=`<button class="ra ${k===rart?"on":""}" data-k="${esc(k)}"><b>${hlHtml(a.number,q)}</b><span>${hlHtml(a.title,q)}${snipHtml(a,q)}</span></button>`;
       }
       if(sec)inner+=(g.title?`<div class="sec">${esc(g.title)}</div>`:"")+sec;
     }
@@ -661,12 +685,22 @@ function renderReader(){
   }
   $("rlist").innerHTML=h||'<div class="empty">Нічого не знайдено.</div>';
 }
-function renderArticle(){ // правий стовпець: текст вибраної статті; лівий при цьому не перебудовується й не зсувається
+let PTS=[];
+const PT_RE=/^\s*(\d+(?:\.\d+)*[.)]|[а-яіїєґa-z]\)|[—–-])\s/i;
+const COPY_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg>';
+function renderArticle(keep){ // правий стовпець: текст вибраної статті; лівий при цьому не перебудовується й не зсувається
   const box=$("rbody"),r=AMAP[rart];
   if(!r){box.innerHTML='<div class="empty">Оберіть статтю зліва.</div>';return}
-  const{a,c}=r;
-  box.innerHTML=`<div class="rhead"><span class="badge ${esc(c.color)}">${esc(c.abbr)}</span><span class="note">${esc(c.title.replace(/\s*\([^)]{1,8}\)\s*$/,""))}${c.updated?" · редакція від "+esc(c.updated):""}</span></div><h2 class="rtitle"><b>Ст. ${esc(a.number)}</b>${esc(a.title)}</h2><div class="dt">${esc(a.text??a.description??"")}</div>${a.note?`<div class="dn">${esc(a.note)}</div>`:""}${(a.tags||[]).length?`<div class="dtags">${a.tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`:""}<div class="row" style="margin-top:1em"><button id="rcopy">Копіювати статтю</button></div>`;
-  box.scrollTop=0;
+  const{a,c}=r,ts=norm($("rq").value.trim()).split(/\s+/).filter(Boolean);PTS=[];
+  // кожен рядок тексту окремий пункт зі своєю кнопкою копіювання; текст виділяється довільно
+  const body=String(a.text??a.description??"").split("\n").map(l=>{
+    if(!l.trim())return'<div class="pgap"></div>';
+    PTS.push(l.trim());
+    return`<div class="ptl${PT_RE.test(l)?" pt":""}"><span class="ptx">${hlHtml(l,ts)}</span><button class="ptc" data-cp="${PTS.length-1}" aria-label="Копіювати пункт" title="Копіювати пункт">${COPY_ICON}</button></div>`;
+  }).join("");
+  box.innerHTML=`<div class="rhead"><span class="badge ${esc(c.color)}">${esc(c.abbr)}</span><span class="note">${esc(c.title.replace(/\s*\([^)]{1,8}\)\s*$/,""))}${c.updated?" · редакція від "+esc(c.updated):""}</span></div><h2 class="rtitle"><b>Ст. ${hlHtml(a.number,ts)}</b>${hlHtml(a.title,ts)}</h2><div class="dt">${body}</div>${a.note?`<div class="dn">${esc(a.note)}</div>`:""}${(a.tags||[]).length?`<div class="dtags">${a.tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`:""}<div class="row" style="margin-top:1em"><button id="rcopy">Копіювати статтю</button></div>`;
+  if(!keep)box.scrollTop=0;
+  const mk=ts.length&&box.querySelector("mark");if(mk&&mk.scrollIntoView)mk.scrollIntoView({block:"center"});
 }
 $("rlist").addEventListener("click",e=>{
   const h=e.target.closest(".rch");
@@ -678,10 +712,12 @@ $("rlist").addEventListener("click",e=>{
   }
 });
 $("rbody").addEventListener("click",e=>{
+  const pc=e.target.closest("[data-cp]");
+  if(pc){const t=PTS[+pc.dataset.cp];if(t)copyMini(pc,t);return}
   const b=e.target.closest("#rcopy"),r=AMAP[rart];
   if(b&&r)copyBtn(b,`Ст. ${r.a.number}. ${r.a.title}\n\n${r.a.text??r.a.description??""}`);
 });
-$("rq").addEventListener("input",()=>requestAnimationFrame(renderReader));
+$("rq").addEventListener("input",()=>requestAnimationFrame(()=>{renderReader();renderArticle(true)})); // збіги підсвічуються й у списку, й у тексті відкритої статті
 
 // ---- оновлення застосунку ----
 let APPV="",MINV="";
@@ -714,6 +750,8 @@ async function bootTauri(){
   ev.listen("boot-done",()=>{setTimeout(reveal,450);if(RESTORED)toast("Пошкоджені локальні файли відновлено")});
   ev.listen("overlay-click",e=>{CLICK=!!e.payload;renderOvTools();if(OVERLAY)toast(()=>CLICK?(KEYS.click?"Наскрізний режим увімкнено. Вимкнути: "+KEYS.click:"Наскрізний режим увімкнено. Вимкнути можна в треї"):"Наскрізний режим вимкнено")});
   ev.listen("spot-quick",()=>{if(OVERLAY&&SP){spView("quick");spotRender()}});
+  ev.listen("main-hidden",()=>{if(!OVERLAY)document.body.classList.add("pre")}); // поки вікно приховане, готуємо плавну появу
+  ev.listen("main-shown",()=>{if(!OVERLAY)requestAnimationFrame(()=>requestAnimationFrame(reveal))});
   ev.listen("tray-hint",()=>{if(!OVERLAY)toast(()=>"Olymp Helper працює в треї. Відкрити: клік по іконці"+(KEYS.toggle?". Оверлей: "+KEYS.toggle:""))});
   ev.listen("win-flush",e=>document.body.classList.toggle("maxd",!!e.payload));
   ev.listen("overlay-lock",e=>{const v=!!e.payload,ch=v!==ovLocked;setLockUi(v);if(OVERLAY&&ch)toast(v?"Позицію заблоковано":"Позицію розблоковано")});
@@ -1094,7 +1132,9 @@ function syncUi(){
 function initUi(){
   syncUi();applyLinks(null);
   if(OVERLAY){document.body.classList.add("ov");document.documentElement.classList.add("ovroot");document.querySelectorAll(".rz").forEach(e=>e.remove())}
-  else{addEventListener("online",()=>loadAll(false));addEventListener("resize",moveInd);requestAnimationFrame(moveInd)}
+  else{addEventListener("online",()=>loadAll(false));addEventListener("resize",moveInd);scheduleInd();
+    if(typeof ResizeObserver!=="undefined"){const nv=document.querySelector("nav");if(nv)new ResizeObserver(()=>moveInd()).observe(nv)}
+    if(document.fonts&&document.fonts.ready)document.fonts.ready.then(moveInd)}
   addEventListener("offline",()=>setNet(false));
 }
 function pushState(){ // передає налаштування у Rust
