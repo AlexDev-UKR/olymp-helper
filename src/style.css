@@ -570,3 +570,15 @@ mark{background:color-mix(in srgb,var(--ac) 40%,transparent);color:inherit;borde
 .ptc:hover{color:var(--tx)}
 .ptc.done{opacity:1;color:#9fdcb8;border-color:var(--grn);background:rgba(106,160,131,.2)}
 .ptc.done svg{display:none}.ptc.done::after{content:"✓";font-weight:700}
+
+/* ===== v1.2.13: рапорт, пошук ===== */
+.modal .card.wide{width:min(46em,100%);max-height:88vh;overflow:auto}
+.rfields{display:grid;gap:.5em;margin:.7em 0}
+.rf{display:grid;grid-template-columns:9em 1fr;gap:.6em;align-items:center}
+.rf span{color:var(--mut)}
+.rl{display:block;margin:.8em 0 .3em;color:var(--mut);font-size:.88em}
+#rTpl{width:100%;min-height:9em;font:inherit;line-height:1.55;background:var(--bg);color:var(--tx);border:1px solid var(--b2);border-radius:var(--r2);padding:.6em .75em;resize:vertical}
+#rTpl:focus{outline:0;border-color:color-mix(in srgb,var(--ac) 60%,transparent)}
+#rChips{display:flex;flex-wrap:wrap;gap:.35em;margin-top:.5em}
+#rChips .chip{font-family:Consolas,"Segoe UI",monospace;font-size:.82em}
+.rprev{margin:0;white-space:pre-wrap;word-break:break-word;background:var(--bg);border:1px solid var(--b2);border-radius:var(--r2);padding:.7em .85em;max-height:13em;overflow:auto;line-height:1.55;font:inherit}

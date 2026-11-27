@@ -13,6 +13,7 @@ use tauri_plugin_dialog::DialogExt;
 use std::str::FromStr;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_plugin_opener::OpenerExt;
+use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_updater::UpdaterExt;
 
 // Spotlight Bar: фіксована ширина, висота підлаштовується під вміст (мінімальна площа перекриття екрана)
@@ -284,6 +285,14 @@ fn apply_overlay_state(app: AppHandle) {
 }
 
 // Перетягування Spotlight Bar системним механізмом (плавно, без проміжної обробки в JS); не працює, коли позицію заблоковано
+// Сповіщення Windows (наприклад, про важливу новину): працює й тоді, коли лаунчер згорнутий у трей
+#[tauri::command]
+fn notify(app: AppHandle, title: String, body: String) {
+    let t: String = title.chars().take(80).collect();
+    let b: String = body.chars().take(240).collect();
+    let _ = app.notification().builder().title(t).body(b).show();
+}
+
 #[tauri::command]
 fn spot_drag(app: AppHandle) {
     if app.state::<Flags>().ov_locked.load(Ordering::Relaxed) { return; }
@@ -526,6 +535,7 @@ fn main() {
         .manage(Flags::new())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -649,7 +659,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             toggle_overlay, show_overlay, stop_overlay, set_overlay_lock, set_overlay_ontop,
-            set_click_through, set_auto_overlay, set_close_mode, set_game_exe, game_state, set_keybinds, apply_overlay_state, spot_resize, spot_drag,
+            set_click_through, set_auto_overlay, set_close_mode, set_game_exe, game_state, set_keybinds, apply_overlay_state, spot_resize, spot_drag, notify,
             set_autostart, pick_exe, open_url, app_version, check_update, install_update,
             vault_dump, vault_set, vault_del, finish_boot_cmd, boot_ready, boot_state, notice_ok, win_ctl, set_frame
         ])

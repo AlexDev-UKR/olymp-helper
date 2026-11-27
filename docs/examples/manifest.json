@@ -17,5 +17,6 @@
   },
   "faq_url": "https://raw.githubusercontent.com/your-org/gov-laws/main/faq.json",
   "codes_url": "https://raw.githubusercontent.com/your-org/gov-laws/main/codes.json",
-  "templates_url": "https://raw.githubusercontent.com/AlexDev-UKR/olymp-laws/refs/heads/main/templates.json"
+  "templates_url": "https://raw.githubusercontent.com/AlexDev-UKR/olymp-laws/refs/heads/main/templates.json",
+  "synonyms_url": "https://raw.githubusercontent.com/AlexDev-UKR/olymp-laws/refs/heads/main/synonyms.json"
 }
